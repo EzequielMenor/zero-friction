@@ -41,12 +41,8 @@ export default function RootLayout({
         {/* Sidebar nav (desktop) + Bottom bar (mobile) */}
         <NavMenu />
 
-        {/* Main content — sidebar offset on desktop, full width on mobile */}
-        <div className="relative z-10 flex-1 flex flex-col md:ml-[220px]">
-          <main className="max-w-[720px] mx-auto w-full flex-1 px-6 pb-24 pt-8">
-            {children}
-          </main>
-        </div>
+        {/* Route group content — (auth) has no offset; (app) adds its own ml-[220px] */}
+        {children}
 
         {/* Capture Overlay — floating trigger */}
         <CaptureOverlay />

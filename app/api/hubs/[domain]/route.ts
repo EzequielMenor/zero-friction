@@ -47,9 +47,13 @@ export async function GET(
 
   // Pick the counterpart note from each relationship (the one whose domain !== current)
   const seen = new Set<string>()
-  const relatedItems = []
+  const relatedItems: (typeof relationships)[number]['sourceNote'][] = []
   for (const rel of relationships) {
-    const other = rel.sourceNote.domain === domainEnum ? rel.targetNote : rel.sourceNote
+    // ponytail: if both notes somehow share the same domain (edge case from re-capture),
+    // this guard filters out the leak before it reaches relatedItems.
+    const isSourceInCurrentDomain: boolean = rel.sourceNote.domain === domainEnum
+    const other: typeof rel.sourceNote = isSourceInCurrentDomain ? rel.targetNote : rel.sourceNote
+    if (other.domain === domainEnum) continue
     if (!seen.has(other.id)) {
       seen.add(other.id)
       relatedItems.push(other)
