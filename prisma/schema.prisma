@@ -1,0 +1,158 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Domain {
+  ESPIRITUAL
+  PERSONAL
+  APRENDIZAJE
+  PROYECTOS
+  REGISTROS
+}
+
+enum NoteStatus {
+  DRAFT
+  NEEDS_REVIEW
+  ACTIVE
+  IN_PROGRESS
+  DONE
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  notes         Note[]
+  relationships NoteRelationship[]
+  workouts      Workout[]
+  transactions  Transaction[]
+  subscriptions Subscription[]
+  habits        Habit[]
+}
+
+model Note {
+  id            String             @id @default(cuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  content       String
+  domain        Domain
+  status        NoteStatus         @default(ACTIVE)
+  dueDate       DateTime?
+  isImportant   Boolean            @default(false)
+  tags          String[]
+
+  // pgvector: Storing vector representations for the Zettelkasten Graph
+  embedding     Unsupported("vector(1536)")?
+
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  incomingLinks NoteRelationship[] @relation("TargetNote")
+  outgoingLinks NoteRelationship[] @relation("SourceNote")
+}
+
+model NoteRelationship {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sourceNoteId String
+  sourceNote   Note     @relation("SourceNote", fields: [sourceNoteId], references: [id], onDelete: Cascade)
+
+  targetNoteId String
+  targetNote   Note     @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Cascade)
+
+  similarity   Float?
+  isManual     Boolean  @default(false)
+
+  createdAt    DateTime @default(now())
+
+  @@unique([sourceNoteId, targetNoteId])
+}
+
+model Workout {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  date      DateTime
+  duration  String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  sets      WorkoutSet[]
+
+  @@unique([userId, date])
+}
+
+model WorkoutSet {
+  id           String   @id @default(cuid())
+  workoutId    String
+  workout      Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseName String
+  weight       Float
+  reps         Int
+  setType      String
+  supersetId   String?
+}
+
+model Transaction {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount         Float
+  description    String
+  date           DateTime
+  category       String
+
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Subscription {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  amount       Float
+  dayOfMonth   Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  transactions Transaction[]
+}
+
+model Habit {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  frequency String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  logs      HabitLog[]
+}
+
+model HabitLog {
+  id        String   @id @default(cuid())
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime
+  completed Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([habitId, date])
+}
