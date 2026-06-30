@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { CalendarIcon, FlameIcon } from '@/components/icons'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -304,25 +305,25 @@ export default function CaptureOverlay() {
 
   return (
     <>
-      {/* Floating trigger — bottom-center circular button */}
+      {/* Floating trigger — precision FAB */}
       <button
         type="button"
         onClick={openOverlay}
         aria-label="Capturar nota"
-        className="fixed bottom-6 left-1/2 z-40 h-14 w-14 -translate-x-1/2 rounded-full bg-[#A68966] text-black shadow-lg shadow-black/40 transition-transform hover:scale-105 active:scale-95 md:bottom-8 md:left-auto md:right-8 md:translate-x-0"
+        className="fixed bottom-6 left-1/2 z-40 size-[52px] -translate-x-1/2 rounded-full bg-[#A68966] text-black shadow-lg shadow-black/40 flex items-center justify-center transition-all duration-200 ease-out hover:scale-105 hover:shadow-[0_4px_24px_rgba(166,137,102,0.25)] active:scale-95 md:bottom-8 md:left-auto md:right-8 md:translate-x-0"
       >
         <PenIcon />
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm md:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-graphite/70 backdrop-blur-sm md:items-center"
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) closeOverlay()
           }}
         >
           <div
-            className="w-full rounded-t-3xl border border-[#1A1A1A] bg-[#0A0A0A] px-6 pb-8 pt-6 shadow-2xl md:max-w-lg md:rounded-3xl"
+            className="w-full rounded-t-3xl border border-graphite-border bg-graphite-card px-6 pb-8 pt-6 shadow-2xl md:max-w-lg md:rounded-3xl"
             onPointerDown={pauseCountdown}
             onKeyDown={pauseCountdown}
           >
@@ -350,18 +351,19 @@ export default function CaptureOverlay() {
               }}
               placeholder="Escribí o hablá… mañana, importante, 12 de julio"
               rows={4}
-              className="w-full resize-none rounded-2xl border border-[#1A1A1A] bg-black px-4 py-3 font-sans text-[15px] leading-relaxed text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
+              className="w-full resize-none rounded-2xl border border-graphite-border bg-graphite px-4 py-3 font-sans text-[15px] leading-relaxed text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
             />
 
             {/* Chips */}
             {(chips.dates.length > 0 || chips.important) && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {chips.dates.map((d) => (
-                  <Chip key={d} label={`📅 ${d}`} />
+                  <Chip key={d} icon={<CalendarIcon />} label={d} />
                 ))}
                 {chips.important && (
                   <Chip
-                    label="🔥 Importante"
+                    icon={<FlameIcon />}
+                    label="Importante"
                     onClick={() => setText((t) => t.replace(/!/g, ''))}
                   />
                 )}
@@ -379,7 +381,7 @@ export default function CaptureOverlay() {
                     key={n.id}
                     type="button"
                     onClick={closeOverlay}
-                    className="block w-full rounded-lg border border-[#161616] bg-black/40 px-3 py-2 text-left transition-colors hover:border-[#A68966]/40"
+                    className="block w-full rounded-lg border border-graphite-border bg-graphite/40 px-3 py-2 text-left transition-colors hover:border-[#A68966]/40"
                   >
                     <p className="truncate text-sm text-[#E3E2E2]">{n.title}</p>
                     <p className="truncate text-xs text-[#5A5A5A]">{n.content}</p>
@@ -399,7 +401,7 @@ export default function CaptureOverlay() {
                 className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors disabled:opacity-40 ${
                   recording
                     ? 'border-red-500/60 bg-red-500/10 text-red-400'
-                    : 'border-[#1A1A1A] text-[#A1A1AA] hover:text-[#E3E2E2]'
+                    : 'border-graphite-border text-[#A1A1AA] hover:text-[#E3E2E2]'
                 }`}
               >
                 {transcribing ? <Spinner /> : <MicIcon active={recording} />}
@@ -434,13 +436,14 @@ export default function CaptureOverlay() {
 
 // ─── Small subcomponents ──────────────────────────────────────────────────────
 
-function Chip({ label, onClick }: { label: string; onClick?: () => void }) {
+function Chip({ icon, label, onClick }: { icon?: React.ReactNode; label: string; onClick?: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-[#A68966]/30 bg-[#A68966]/10 px-3 py-1 text-xs text-[#A68966] transition-colors hover:border-[#A68966]/60"
+      className="rounded-full border border-[#A68966]/30 bg-[#A68966]/10 px-3 py-1 text-xs text-[#A68966] transition-colors hover:border-[#A68966]/60 flex items-center gap-1.5"
     >
+      {icon}
       {label}
     </button>
   )

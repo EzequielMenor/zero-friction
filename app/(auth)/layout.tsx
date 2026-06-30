@@ -8,8 +8,8 @@ export default function AuthLayout({
   return (
     <>
       {/* Monograph wordmark header — restored from pre-4.1 layout */}
-      <header className="w-full top-0 sticky z-40 bg-[#000000]/90 backdrop-blur-md">
-        <div className="max-w-[720px] mx-auto px-6 py-8 flex items-center justify-center border-b border-[#1A1A1A]">
+      <header className="w-full top-0 sticky z-40 bg-graphite/90 backdrop-blur-md">
+        <div className="max-w-[720px] mx-auto px-6 py-8 flex items-center justify-center border-b border-graphite-border">
           <h1 className="font-sans text-[12px] font-semibold tracking-[0.2em] text-[#A68966] uppercase">
             Monograph
           </h1>

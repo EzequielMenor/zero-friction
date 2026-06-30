@@ -102,13 +102,13 @@ function isTodayDraft(text: string): boolean {
 function Skeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="h-4 w-12 bg-[#1A1A1A] rounded" />
-      <div className="h-8 w-64 bg-[#1A1A1A] rounded" />
-      <div className="h-3 w-48 bg-[#1A1A1A] rounded" />
-      <div className="mt-10 h-32 border border-[#1A1A1A] rounded-none bg-[#0A0A0A]" />
+      <div className="h-4 w-12 bg-graphite-border rounded" />
+      <div className="h-8 w-64 bg-graphite-border rounded" />
+      <div className="h-3 w-48 bg-graphite-border rounded" />
+      <div className="mt-10 h-32 border border-graphite-border rounded-none bg-graphite-card" />
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-12 border border-[#1A1A1A] rounded-none bg-[#0A0A0A]" />
+          <div key={i} className="h-12 border border-graphite-border rounded-none bg-graphite-card" />
         ))}
       </div>
     </div>
@@ -170,7 +170,7 @@ function Toast({ message, onDismiss }: { message: string; onDismiss: () => void 
   }, [onDismiss])
 
   return (
-    <div className="fixed bottom-8 right-6 z-50 bg-[#1A1A1A] border border-[#A68966]/40 px-4 py-2 text-sm text-[#E3E2E2] animate-fade-in">
+    <div className="fixed bottom-8 right-6 z-50 bg-graphite-border border border-[#A68966]/40 px-4 py-2 text-sm text-[#E3E2E2] animate-fade-in">
       {message}
     </div>
   )
@@ -210,20 +210,20 @@ function ReflectionForm({
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="w-full bg-[#0A0A0A] border border-[#1A1A1A] text-[#E3E2E2] text-xs px-3 py-2 resize-none focus:outline-none focus:border-[#A68966]/40"
+            className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-xs px-3 py-2 resize-none focus:outline-none focus:border-[#A68966]/40"
             rows={3}
             placeholder="Tu reflexión..."
           />
           <div className="flex gap-2">
             <button
               onClick={handleSubmit}
-              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-[#1A1A1A] text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
             >
               Añadir
             </button>
             <button
               onClick={() => { setOpen(false); setText('') }}
-              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-[#1A1A1A] text-[#5A5A5A] hover:text-[#7A7A7A] transition-colors"
+              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#5A5A5A] hover:text-[#7A7A7A] transition-colors"
             >
               Cancelar
             </button>
@@ -609,7 +609,7 @@ export default function Dashboard() {
 
       {/* Error state */}
       {error && (
-        <div className="mt-6 border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 flex items-center justify-between">
+        <div className="mt-6 border border-graphite-border bg-graphite-card px-4 py-3 flex items-center justify-between">
           <p className="text-sm text-[#E3E2E2]">{error}</p>
           <button
             onClick={() => window.location.reload()}
@@ -624,7 +624,7 @@ export default function Dashboard() {
       <div className="mt-8">
         <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-3">ENFOQUE</p>
         <div
-          className="border border-[#1A1A1A] border-t border-t-[#A68966]/40 bg-gradient-to-b from-[#0A0A0A] to-black min-h-[120px] px-6 py-5 relative"
+          className="border border-graphite-border border-t border-t-[#A68966]/40 bg-gradient-to-b from-graphite-card to-graphite min-h-[120px] px-6 py-5 relative"
           style={!focusTask ? { animation: 'pulse-border 2s ease-in-out infinite' } : undefined}
         >
           {focusTask ? (
@@ -666,7 +666,7 @@ export default function Dashboard() {
               return (
                 <div
                   key={task.id}
-                  className={`flex items-start gap-3 border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 group transition-opacity duration-200 ${isDone ? 'opacity-30' : 'opacity-100'}`}
+                  className={`flex items-start gap-3 border border-graphite-border bg-graphite-card px-4 py-3 group transition-opacity duration-200 ${isDone ? 'opacity-30' : 'opacity-100'}`}
                 >
                   {/* Checkbox */}
                   {!isPending && (
@@ -725,7 +725,7 @@ export default function Dashboard() {
               return (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 border border-[#1A1A1A] bg-[#0A0A0A] px-3 py-2"
+                  className="flex items-center gap-3 border border-graphite-border bg-graphite-card px-3 py-2"
                 >
                   <CheckIcon checked={false} onChange={() => handleMaintCheck(task)} />
                   <span className="flex-1 min-w-0 truncate text-[12px] text-[#7A7A7A] italic">
@@ -734,7 +734,7 @@ export default function Dashboard() {
                   <span
                     className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 border ${
                       isUndated
-                        ? 'border-[#1A1A1A] text-[#5A5A5A]'
+                        ? 'border-graphite-border text-[#5A5A5A]'
                         : 'border-[#A68966]/30 text-[#A68966]/70'
                     }`}
                   >
@@ -743,19 +743,19 @@ export default function Dashboard() {
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button
                       onClick={() => handleMaintHoy(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-[#1A1A1A] text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
                     >
                       Hoy
                     </button>
                     <button
                       onClick={() => handleMaintManana(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-[#1A1A1A] text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
                     >
                       Mañana
                     </button>
                     <button
                       onClick={() => handleMaintBacklog(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-[#1A1A1A] text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
                     >
                       Al Backlog
                     </button>
@@ -786,7 +786,7 @@ export default function Dashboard() {
                     'w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-150',
                     habit.completedToday
                       ? 'bg-[#A68966] border border-[#A68966] text-black'
-                      : 'bg-[#0A0A0A] border border-[#1A1A1A] text-[#5A5A5A] hover:border-[#A68966]/40 hover:text-[#A68966]',
+                      : 'bg-graphite-card border border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40 hover:text-[#A68966]',
                   ].join(' ')}
                   aria-label={habit.completedToday ? `Desmarcar ${habit.name}` : `Completar ${habit.name}`}
                 >
@@ -804,20 +804,20 @@ export default function Dashboard() {
           <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-3">
             SUBSCRIPCIÓN DE HOY
           </p>
-          <div className="border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 flex items-center justify-between">
+          <div className="border border-graphite-border bg-graphite-card px-4 py-3 flex items-center justify-between">
             <p className="text-sm text-[#E3E2E2]">
               ¿Te han cobrado hoy {dueSubscription.name} ({dueSubscription.amount}€)?
             </p>
             <div className="flex items-center gap-2 ml-4 flex-shrink-0">
               <button
                 onClick={() => handleSubscriptionConfirm(dueSubscription.id, true)}
-                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-[#1A1A1A] text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
               >
                 Sí
               </button>
               <button
                 onClick={() => handleSubscriptionConfirm(dueSubscription.id, false)}
-                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-[#1A1A1A] text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
               >
                 No
               </button>
@@ -830,7 +830,7 @@ export default function Dashboard() {
       {resurgenceNote && (
         <div className="mt-12">
           <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-3">DEL PASADO</p>
-          <div className="border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-4 relative">
+          <div className="border border-graphite-border bg-graphite-card px-4 py-4 relative">
             <button
               onClick={handleResurgenceRefresh}
               className="absolute top-3 right-3 text-[#5A5A5A] hover:text-[#A68966] transition-colors"

@@ -31,7 +31,7 @@ export default function RootLayout({
       lang="es"
       className={`${inter.variable} ${playfair.variable} dark antialiased`}
     >
-      <body className="min-h-screen bg-[#000000] text-[#A1A1AA] font-sans selection:bg-[#A68966] selection:text-black flex flex-col relative">
+      <body className="min-h-screen bg-graphite text-[#A1A1AA] font-sans selection:bg-[#A68966] selection:text-black flex flex-col relative">
         {/* Noise texture */}
         <div
           className="fixed inset-0 pointer-events-none z-0 opacity-[0.03]"

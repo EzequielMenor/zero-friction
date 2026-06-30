@@ -11,6 +11,8 @@ interface ParsedCapture {
   domain: 'ESPIRITUAL' | 'PERSONAL' | 'APRENDIZAJE' | 'PROYECTOS' | 'REGISTROS'
   cleanedTitle: string
   cleanedContent: string
+  tags: string[]
+  suggestedGoals?: string[]
   metadata: {
     dueDate: string | null
     isImportant: boolean
@@ -51,13 +53,20 @@ async function transcribeAudio(file: File): Promise<string> {
 
 const RESPONSE_SCHEMA = {
   type: 'object',
-  required: ['domain', 'cleanedTitle', 'cleanedContent', 'metadata'],
+  required: ['domain', 'cleanedTitle', 'cleanedContent', 'tags', 'metadata'],
   properties: {
     domain: {
       enum: ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS'],
     },
     cleanedTitle: { type: 'string' },
     cleanedContent: { type: 'string' },
+    tags: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 4 },
+    suggestedGoals: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 1,
+      maxItems: 2,
+    },
     metadata: {
       type: 'object',
       properties: {
@@ -87,7 +96,9 @@ const SYSTEM_PROMPT =
   '5. If REGISTROS+finanzas, extract: value (number), name/description, category (or GASTOS_FIJOS). ' +
   '6. If REGISTROS+habito, extract: name, category (e.g. "salud", "productividad"). ' +
   '7. If REGISTROS+gimnasio, extract: exercise name, weight, reps, sets, or mark as needs_review. ' +
-  'Return ONLY valid JSON matching the schema: ' +
+  '8. Extract 2-4 thematic tags (e.g. ["Paciencia", "Gálatas"] or ["NextJS", "Prisma"]) — these are short topic/theme labels, NOT sentences. ' +
+  '9. If domain is ESPIRITUAL, also extract 1-2 concrete actionable personal-application goals based on the study content (e.g. ["Aplicar Gálatas 5:22-23 en mis relaciones esta semana"]). ' +
+  '10. Return ONLY valid JSON matching the schema: ' +
   JSON.stringify(RESPONSE_SCHEMA) +
   '. Do not add any text before or after the JSON.'
 
@@ -139,6 +150,8 @@ async function saveNote(
         ? new Date(parsed.metadata.dueDate)
         : null,
       isImportant: parsed.metadata.isImportant,
+      tags: parsed.tags ?? [],
+      suggestedGoals: parsed.suggestedGoals ?? [],
     },
   })
 

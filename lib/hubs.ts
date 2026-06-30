@@ -4,11 +4,11 @@
 import type { Domain } from '@prisma/client'
 
 export const HUBS = [
-  { slug: 'espiritual', enum: 'ESPIRITUAL' as Domain, emoji: '📖', label: 'Espiritual' },
-  { slug: 'personal',   enum: 'PERSONAL' as Domain,   emoji: '🧠', label: 'Personal'   },
-  { slug: 'aprendizaje',enum: 'APRENDIZAJE' as Domain,emoji: '📚', label: 'Aprendizaje'},
-  { slug: 'proyectos',  enum: 'PROYECTOS' as Domain, emoji: '💻', label: 'Proyectos'  },
-  { slug: 'registros',  enum: 'REGISTROS' as Domain, emoji: '📊', label: 'Registros'  },
+  { slug: 'espiritual', enum: 'ESPIRITUAL' as Domain, icon: 'espiritual',  label: 'Espiritual' },
+  { slug: 'personal',   enum: 'PERSONAL' as Domain,   icon: 'personal',    label: 'Personal'   },
+  { slug: 'aprendizaje',enum: 'APRENDIZAJE' as Domain, icon: 'aprendizaje', label: 'Aprendizaje'},
+  { slug: 'proyectos',  enum: 'PROYECTOS' as Domain,  icon: 'proyectos',   label: 'Proyectos'  },
+  { slug: 'registros',  enum: 'REGISTROS' as Domain,  icon: 'registros',   label: 'Registros'  },
 ] as const
 
 export const SUPPORTED_SLUGS = HUBS.map((h) => h.slug)
@@ -21,7 +21,7 @@ export function toDomainEnum(slug: string): Domain | null {
 export function domainMeta(domain: Domain) {
   const hub = HUBS.find((h) => h.enum === domain)
   if (!hub) return null
-  return { emoji: hub.emoji, label: hub.label, slug: hub.slug }
+  return { icon: hub.icon, label: hub.label, slug: hub.slug }
 }
 
 export const NOTE_SELECT = {
@@ -31,6 +31,8 @@ export const NOTE_SELECT = {
   status: true,
   isImportant: true,
   dueDate: true,
+  tags: true,
+  suggestedGoals: true,
   createdAt: true,
   updatedAt: true,
 } as const

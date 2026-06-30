@@ -107,7 +107,7 @@ function Field({ label, value, onChange, ...rest }: FieldProps) {
         {...rest}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
+        className="w-full rounded-md border border-graphite-border bg-graphite-card px-4 py-3 text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
       />
     </label>
   )

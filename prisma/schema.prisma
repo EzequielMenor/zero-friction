@@ -48,6 +48,7 @@ model Note {
   dueDate       DateTime?
   isImportant   Boolean            @default(false)
   tags          String[]
+  suggestedGoals String[]
 
   // pgvector: Storing vector representations for the Zettelkasten Graph
   embedding     Unsupported("vector(1536)")?

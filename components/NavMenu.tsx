@@ -3,16 +3,17 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { HUBS } from '@/lib/hubs'
+import { HubIcon } from '@/components/icons'
 
 function NavItem({
   href,
-  emoji,
+  icon,
   label,
   isActive,
   isDesktop,
 }: {
   href: string
-  emoji: string
+  icon?: string
   label: string
   isActive: boolean
   isDesktop: boolean
@@ -33,7 +34,7 @@ function NavItem({
       ].join(' ')}
       style={isDesktop && isActive ? { borderLeftColor: '#A68966' } : undefined}
     >
-      {emoji && <span className="text-base leading-none">{emoji}</span>}
+      {icon && <HubIcon icon={icon} size={isDesktop ? 16 : 20} />}
       <span
         className={isDesktop ? 'tracking-[0.12em] uppercase' : 'tracking-[0.1em] uppercase mt-0.5'}
       >
@@ -53,11 +54,11 @@ export default function NavMenu() {
     <>
       {/* Desktop sidebar — fixed left */}
       <nav
-        className="hidden md:flex fixed left-0 top-0 h-full w-[220px] flex-col bg-[#000000]/95 backdrop-blur-md border-r border-[#1A1A1A] z-30"
+        className="hidden md:flex fixed left-0 top-0 h-full w-[220px] flex-col bg-graphite/95 backdrop-blur-md border-r border-graphite-border z-30"
         aria-label="Navegación principal"
       >
         {/* Wordmark */}
-        <div className="px-6 py-8 border-b border-[#1A1A1A]">
+        <div className="px-6 py-8 border-b border-graphite-border">
           <span className="font-sans text-[11px] font-semibold tracking-[0.2em] text-[#A68966] uppercase">
             Monograph
           </span>
@@ -68,7 +69,6 @@ export default function NavMenu() {
           {/* Today */}
           <NavItem
             href="/"
-            emoji=""
             label="Today"
             isActive={pathname === '/'}
             isDesktop
@@ -81,7 +81,7 @@ export default function NavMenu() {
               <NavItem
                 key={hub.slug}
                 href={href}
-                emoji={hub.emoji}
+                icon={hub.icon}
                 label={hub.label}
                 isActive={isActive}
                 isDesktop
@@ -93,14 +93,13 @@ export default function NavMenu() {
 
       {/* Mobile bottom bar — fixed bottom, horizontally scrollable */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#000000]/95 backdrop-blur-md border-t border-[#1A1A1A] flex items-center overflow-x-auto"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-graphite/95 backdrop-blur-md border-t border-graphite-border flex items-center overflow-x-auto"
         style={{ scrollbarWidth: 'none' } as React.CSSProperties}
         aria-label="Navegación principal"
       >
         {/* Today */}
         <NavItem
           href="/"
-          emoji=""
           label="Today"
           isActive={pathname === '/'}
           isDesktop={false}
@@ -113,7 +112,7 @@ export default function NavMenu() {
             <NavItem
               key={hub.slug}
               href={href}
-              emoji={hub.emoji}
+              icon={hub.icon}
               label={hub.label}
               isActive={isActive}
               isDesktop={false}

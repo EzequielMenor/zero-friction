@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { HUBS, domainMeta } from '@/lib/hubs'
+import { HubIcon } from '@/components/icons'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,8 @@ interface NoteItem {
   createdAt: string
   updatedAt: string
   domain: string
+  tags?: string[]
+  suggestedGoals?: string[]
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -43,9 +46,9 @@ function statusBadge(status: NoteStatus): string {
   return map[status] ?? status
 }
 
-function domainEmoji(domain: string): string {
+function domainIcon(domain: string): string | null {
   const meta = domainMeta(domain as Parameters<typeof domainMeta>[0])
-  return meta?.emoji ?? '📄'
+  return meta?.icon ?? null
 }
 
 function domainLabel(domain: string): string {
@@ -59,18 +62,19 @@ function NotePanel({ note, onClose }: { note: NoteItem; onClose: () => void }) {
   return (
     <>
       <div
-        className="fixed inset-0 z-50 bg-black/60"
+        className="fixed inset-0 z-50 bg-graphite/60"
         onClick={onClose}
       />
-      <div className="fixed right-0 top-0 h-full z-50 w-full max-w-[480px] bg-[#0A0A0A] border-l border-[#1A1A1A] overflow-y-auto animate-slide-in-right">
+      <div className="fixed right-0 top-0 h-full z-50 w-full max-w-[480px] bg-graphite-card border-l border-graphite-border overflow-y-auto animate-slide-in-right">
         <div className="p-6">
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1 min-w-0">
               <h2 className="font-serif text-2xl text-[#E3E2E2] leading-snug">
                 {note.title || 'Sin título'}
               </h2>
-              <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mt-1">
-                {domainEmoji(note.domain)} {domainLabel(note.domain)}
+              <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mt-1 flex items-center gap-1">
+                {domainIcon(note.domain) && <HubIcon icon={domainIcon(note.domain)!} size={12} />}
+                {domainLabel(note.domain)}
               </p>
             </div>
             <button
@@ -101,7 +105,35 @@ function NotePanel({ note, onClose }: { note: NoteItem; onClose: () => void }) {
             {note.content || <span className="italic text-[#5A5A5A]">Sin contenido.</span>}
           </div>
 
-          <div className="mt-8 pt-4 border-t border-[#1A1A1A] text-[10px] text-[#5A5A5A]">
+          {/* Tags */}
+          {note.tags && note.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {note.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="text-[10px] uppercase tracking-wider border border-[#A68966]/30 text-[#A68966] px-2 py-0.5"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Suggested Goals — only for espiritual notes */}
+          {note.domain === 'ESPIRITUAL' && note.suggestedGoals && note.suggestedGoals.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-graphite-border">
+              <p className="text-[10px] tracking-[0.15em] uppercase text-[#A68966] mb-3">
+                Metas sugeridas por IA
+              </p>
+              <div className="space-y-2">
+                {note.suggestedGoals.map((goal, i) => (
+                  <SuggestedGoalButton key={i} noteId={note.id} goal={goal} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 pt-4 border-t border-graphite-border text-[10px] text-[#5A5A5A]">
             <p>Creada {relativeTime(note.createdAt)}</p>
             <p className="mt-0.5">Actualizada {relativeTime(note.updatedAt)}</p>
           </div>
@@ -124,7 +156,7 @@ function NoteCard({ note, onOpen }: { note: NoteItem; onOpen: (n: NoteItem) => v
   return (
     <button
       onClick={() => onOpen(note)}
-      className="w-full text-left border border-[#1A1A1A] bg-[#0A0A0A] px-5 py-4 hover:border-[#A68966]/30 transition-colors group"
+      className="w-full text-left border border-graphite-border bg-graphite-card px-5 py-4 hover:border-[#A68966]/30 transition-colors group"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -145,13 +177,52 @@ function NoteCard({ note, onOpen }: { note: NoteItem; onOpen: (n: NoteItem) => v
         </div>
       </div>
       <div className="flex items-center gap-2 mt-3 text-[10px] text-[#5A5A5A]">
-        <span className="text-[9px] uppercase tracking-wider border border-[#1A1A1A] px-1.5 py-0.5">
+        <span className="text-[9px] uppercase tracking-wider border border-graphite-border px-1.5 py-0.5">
           {statusBadge(note.status)}
         </span>
         <span>Actualizada {relativeTime(note.updatedAt)}</span>
         {note.isImportant && <span className="text-[#A68966]">★</span>}
       </div>
     </button>
+  )
+}
+
+// ─── Suggested Goal Button ─────────────────────────────────────────────────────
+
+function SuggestedGoalButton({ noteId, goal }: { noteId: string; goal: string }) {
+  const [accepted, setAccepted] = useState(false)
+
+  async function handleAccept() {
+    if (accepted) return
+    try {
+      const res = await fetch(`/api/notes/${noteId}/accept-goal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goalText: goal }),
+      })
+      if (res.ok) {
+        setAccepted(true)
+      }
+    } catch {
+      // noop — button stays enabled on network failure
+    }
+  }
+
+  return (
+    <div className="flex items-start gap-2">
+      <span className="text-[#5A5A5A] text-xs flex-1 leading-relaxed">{goal}</span>
+      <button
+        onClick={handleAccept}
+        disabled={accepted}
+        className={`flex-shrink-0 text-[10px] uppercase tracking-wider px-2 py-1 border transition-colors ${
+          accepted
+            ? 'border-[#A68966]/20 text-[#A68966]/30 cursor-default'
+            : 'border-[#A68966]/40 text-[#A68966] hover:bg-[#A68966]/10'
+        }`}
+      >
+        {accepted ? 'Aceptada' : 'Aceptar como Meta'}
+      </button>
+    </div>
   )
 }
 
@@ -167,8 +238,17 @@ export default function HubContent({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null)
+  const [activeTag, setActiveTag] = useState<string | null>(null)
 
   const hub = HUBS.find((h) => h.slug === slug)
+
+  const allTags = slug === 'espiritual'
+    ? Array.from(new Set(data?.notes.flatMap((n) => n.tags ?? []) ?? [])).sort()
+    : []
+
+  const filteredNotes = activeTag
+    ? (data?.notes.filter((n) => n.tags?.includes(activeTag)) ?? [])
+    : (data?.notes ?? [])
 
   useEffect(() => {
     async function load() {
@@ -189,10 +269,10 @@ export default function HubContent({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-20 bg-[#1A1A1A] w-48 rounded" />
+        <div className="h-20 bg-graphite-border w-48 rounded" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 border border-[#1A1A1A] bg-[#0A0A0A]" />
+            <div key={i} className="h-24 border border-graphite-border bg-graphite-card" />
           ))}
         </div>
       </div>
@@ -201,38 +281,67 @@ export default function HubContent({ slug }: { slug: string }) {
 
   if (error || !data) {
     return (
-      <div className="border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 text-sm text-[#E3E2E2]">
+      <div className="border border-graphite-border bg-graphite-card px-4 py-3 text-sm text-[#E3E2E2]">
         {error ?? 'Error desconocido.'}
       </div>
     )
   }
 
-  const { notes, relatedItems } = data
+  const { relatedItems } = data
 
   return (
     <>
       {/* Editorial Header */}
       <div className="mb-8">
         <div className="flex items-center gap-4 mb-2">
-          <span className="text-5xl leading-none">{hub?.emoji}</span>
+          {hub && <HubIcon icon={hub.icon} size={48} />}
           <h1 className="font-serif text-4xl text-[#E3E2E2]">{hub?.label}</h1>
         </div>
         <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
         <p className="text-[11px] tracking-[0.15em] uppercase text-[#5A5A5A]">
-          {notes.length === 0
+          {filteredNotes.length === 0
             ? 'Sin notas'
-            : `${notes.length} nota${notes.length !== 1 ? 's' : ''}`}
+            : `${filteredNotes.length} nota${filteredNotes.length !== 1 ? 's' : ''}`}
         </p>
       </div>
 
+      {/* Smart Tags Filter — only for espiritual */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          <button
+            onClick={() => setActiveTag(null)}
+            className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
+              activeTag === null
+                ? 'border-[#A68966] text-[#A68966]'
+                : 'border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40'
+            }`}
+          >
+            Todas
+          </button>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              onClick={() => setActiveTag(tag === activeTag ? null : tag)}
+              className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
+                tag === activeTag
+                  ? 'border-[#A68966] text-[#A68966]'
+                  : 'border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Notes list */}
-      {notes.length === 0 ? (
+      {filteredNotes.length === 0 ? (
         <p className="text-[#5A5A5A] text-sm italic mt-8">
           Sin notas en este dominio por ahora.
         </p>
       ) : (
         <div className="space-y-3">
-          {notes.map((note) => (
+          {filteredNotes.map((note) => (
             <NoteCard key={note.id} note={note} onOpen={setSelectedNote} />
           ))}
         </div>
@@ -246,7 +355,7 @@ export default function HubContent({ slug }: { slug: string }) {
           >
             <span>Vínculos Externos</span>
             <div className="flex items-center gap-2">
-              <span className="border border-[#1A1A1A] px-1.5 py-0.5 text-[10px]">
+              <span className="border border-graphite-border px-1.5 py-0.5 text-[10px]">
                 {relatedItems.length}
               </span>
               <span className="group-open:rotate-180 transition-transform duration-200">
@@ -268,10 +377,11 @@ export default function HubContent({ slug }: { slug: string }) {
                   <button
                     key={item.id}
                     onClick={() => setSelectedNote(item)}
-                    className="w-full text-left border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 hover:border-[#A68966]/30 transition-colors group flex items-start gap-3"
+                    className="w-full text-left border border-graphite-border bg-graphite-card px-4 py-3 hover:border-[#A68966]/30 transition-colors group flex items-start gap-3"
                   >
-                    <span className="flex-shrink-0 text-[10px] border border-[#A68966]/40 text-[#A68966] px-2 py-0.5 uppercase tracking-wider mt-0.5">
-                      {domainEmoji(item.domain)} {domainLabel(item.domain)}
+                    <span className="flex-shrink-0 text-[10px] border border-[#A68966]/40 text-[#A68966] px-2 py-0.5 uppercase tracking-wider mt-0.5 flex items-center gap-1">
+                      {domainIcon(item.domain) && <HubIcon icon={domainIcon(item.domain)!} size={12} />}
+                      {domainLabel(item.domain)}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-[#E3E2E2] text-sm font-serif group-hover:text-[#A68966]/80 transition-colors truncate">
