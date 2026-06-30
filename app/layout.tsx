@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from 'next/font/google';
 import "./globals.css";
+import CaptureOverlay from '@/components/CaptureOverlay';
 
 // 1. Configuramos nuestras tipografías "Bespoke"
 const inter = Inter({ 
@@ -55,7 +56,8 @@ export default function RootLayout({
           {children}
         </main>
 
-        {/* TODO: Aquí inyectaremos el Menú Flotante (FAB) en el siguiente paso */}
+        {/* 7. Capture Overlay — floating trigger + Cmd+K / Opt+Space shortcut */}
+        <CaptureOverlay />
       </body>
     </html>
   );
