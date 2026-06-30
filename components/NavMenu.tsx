@@ -88,6 +88,14 @@ export default function NavMenu() {
               />
             )
           })}
+          {/* Mente — neural graph view */}
+          <NavItem
+            href="/hubs/mente"
+            icon="mente"
+            label="Mente"
+            isActive={pathname === '/hubs/mente'}
+            isDesktop
+          />
         </div>
       </nav>
 
@@ -119,6 +127,14 @@ export default function NavMenu() {
             />
           )
         })}
+        {/* Mente — neural graph view */}
+        <NavItem
+          href="/hubs/mente"
+          icon="mente"
+          label="Mente"
+          isActive={pathname === '/hubs/mente'}
+          isDesktop={false}
+        />
       </nav>
     </>
   )

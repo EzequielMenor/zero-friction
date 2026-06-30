@@ -13,9 +13,39 @@ const NOTE_SELECT = {
   dueDate: true,
   createdAt: true,
   updatedAt: true,
+  domain: true,
+  tags: true,
+  suggestedGoals: true,
 } as const
 
 const VALID_STATUSES: NoteStatus[] = ['DRAFT', 'NEEDS_REVIEW', 'ACTIVE', 'IN_PROGRESS', 'DONE']
+
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const token = (await cookies()).get(AUTH_COOKIE)?.value
+  if (!token) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  }
+
+  const session = await verifySession(token)
+  if (!session) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  }
+
+  const { id } = await ctx.params
+
+  const note = await prisma.note.findFirst({
+    where: { id, userId: session.userId },
+    select: NOTE_SELECT,
+  })
+  if (!note) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 })
+  }
+
+  return NextResponse.json(note)
+}
 
 export async function PATCH(
   req: NextRequest,

@@ -3,24 +3,11 @@
 import { useEffect, useState } from 'react'
 import { HUBS, domainMeta } from '@/lib/hubs'
 import { HubIcon } from '@/components/icons'
+import { NotePanel, type NoteItem } from '@/components/NotePanel'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type NoteStatus = 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE' | 'IN_PROGRESS' | 'DONE'
-
-interface NoteItem {
-  id: string
-  title: string
-  content: string
-  status: NoteStatus
-  isImportant: boolean
-  dueDate: string | null
-  createdAt: string
-  updatedAt: string
-  domain: string
-  tags?: string[]
-  suggestedGoals?: string[]
-}
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -54,100 +41,6 @@ function domainIcon(domain: string): string | null {
 function domainLabel(domain: string): string {
   const meta = domainMeta(domain as Parameters<typeof domainMeta>[0])
   return meta?.label ?? domain
-}
-
-// ─── Detail Panel ─────────────────────────────────────────────────────────────
-
-function NotePanel({ note, onClose }: { note: NoteItem; onClose: () => void }) {
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-50 bg-graphite/60"
-        onClick={onClose}
-      />
-      <div className="fixed right-0 top-0 h-full z-50 w-full max-w-[480px] bg-graphite-card border-l border-graphite-border overflow-y-auto animate-slide-in-right">
-        <div className="p-6">
-          <div className="flex items-start justify-between mb-6">
-            <div className="flex-1 min-w-0">
-              <h2 className="font-serif text-2xl text-[#E3E2E2] leading-snug">
-                {note.title || 'Sin título'}
-              </h2>
-              <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mt-1 flex items-center gap-1">
-                {domainIcon(note.domain) && <HubIcon icon={domainIcon(note.domain)!} size={12} />}
-                {domainLabel(note.domain)}
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="ml-4 flex-shrink-0 text-[#5A5A5A] hover:text-[#A68966] transition-colors"
-              aria-label="Cerrar"
-            >
-              <svg viewBox="0 0 16 16" className="w-4 h-4">
-                <line x1="2" y1="2" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <line x1="14" y1="2" x2="2" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3 mb-6 text-[11px] text-[#5A5A5A]">
-            <span className="border border-[#A68966]/40 text-[#A68966] px-2 py-0.5 text-[10px] uppercase tracking-wider">
-              {statusBadge(note.status)}
-            </span>
-            {note.dueDate && (
-              <span>{new Date(note.dueDate).toLocaleDateString('es-AR')}</span>
-            )}
-            {note.isImportant && (
-              <span className="text-[#A68966]">★ Importante</span>
-            )}
-          </div>
-
-          <div className="prose prose-sm text-[#A1A1AA] font-sans leading-relaxed whitespace-pre-wrap">
-            {note.content || <span className="italic text-[#5A5A5A]">Sin contenido.</span>}
-          </div>
-
-          {/* Tags */}
-          {note.tags && note.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4">
-              {note.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="text-[10px] uppercase tracking-wider border border-[#A68966]/30 text-[#A68966] px-2 py-0.5"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Suggested Goals — only for espiritual notes */}
-          {note.domain === 'ESPIRITUAL' && note.suggestedGoals && note.suggestedGoals.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-graphite-border">
-              <p className="text-[10px] tracking-[0.15em] uppercase text-[#A68966] mb-3">
-                Metas sugeridas por IA
-              </p>
-              <div className="space-y-2">
-                {note.suggestedGoals.map((goal, i) => (
-                  <SuggestedGoalButton key={i} noteId={note.id} goal={goal} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-8 pt-4 border-t border-graphite-border text-[10px] text-[#5A5A5A]">
-            <p>Creada {relativeTime(note.createdAt)}</p>
-            <p className="mt-0.5">Actualizada {relativeTime(note.updatedAt)}</p>
-          </div>
-        </div>
-      </div>
-      <style>{`
-        @keyframes slide-in-right {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-        .animate-slide-in-right { animation: slide-in-right 200ms ease-out forwards }
-      `}</style>
-    </>
-  )
 }
 
 // ─── Note Card ────────────────────────────────────────────────────────────────
@@ -184,45 +77,6 @@ function NoteCard({ note, onOpen }: { note: NoteItem; onOpen: (n: NoteItem) => v
         {note.isImportant && <span className="text-[#A68966]">★</span>}
       </div>
     </button>
-  )
-}
-
-// ─── Suggested Goal Button ─────────────────────────────────────────────────────
-
-function SuggestedGoalButton({ noteId, goal }: { noteId: string; goal: string }) {
-  const [accepted, setAccepted] = useState(false)
-
-  async function handleAccept() {
-    if (accepted) return
-    try {
-      const res = await fetch(`/api/notes/${noteId}/accept-goal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goalText: goal }),
-      })
-      if (res.ok) {
-        setAccepted(true)
-      }
-    } catch {
-      // noop — button stays enabled on network failure
-    }
-  }
-
-  return (
-    <div className="flex items-start gap-2">
-      <span className="text-[#5A5A5A] text-xs flex-1 leading-relaxed">{goal}</span>
-      <button
-        onClick={handleAccept}
-        disabled={accepted}
-        className={`flex-shrink-0 text-[10px] uppercase tracking-wider px-2 py-1 border transition-colors ${
-          accepted
-            ? 'border-[#A68966]/20 text-[#A68966]/30 cursor-default'
-            : 'border-[#A68966]/40 text-[#A68966] hover:bg-[#A68966]/10'
-        }`}
-      >
-        {accepted ? 'Aceptada' : 'Aceptar como Meta'}
-      </button>
-    </div>
   )
 }
 

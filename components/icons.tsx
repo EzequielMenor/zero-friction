@@ -37,6 +37,19 @@ const iconPaths: Record<string, (props: SVGProps<SVGSVGElement>) => React.ReactN
       <rect x="17" y="3" width="4" height="17" rx="1" />
     </svg>
   ),
+  mente: (p) => (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="6" cy="6" r="1.5" />
+      <circle cx="18" cy="6" r="1.5" />
+      <circle cx="6" cy="18" r="1.5" />
+      <circle cx="18" cy="18" r="1.5" />
+      <line x1="10" y1="10.5" x2="7.5" y2="7.5" />
+      <line x1="14" y1="10.5" x2="16.5" y2="7.5" />
+      <line x1="10" y1="13.5" x2="7.5" y2="16.5" />
+      <line x1="14" y1="13.5" x2="16.5" y2="16.5" />
+    </svg>
+  ),
 }
 
 export function HubIcon({ icon, size = 20, className }: { icon: string; size?: number; className?: string }) {
