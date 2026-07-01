@@ -73,6 +73,17 @@ function capitalizeFirst(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
+function formatDisplayName(localPart: string): string {
+  // ponytail: email local part → "Test User" / "Ezequiel". Strips digits and
+  // test-noise suffixes; upgrade path is a proper display-name field on User.
+  return localPart
+    .split(/[-_]/)
+    .map((w) => w.replace(/[^a-zA-Z]/g, ''))
+    .filter(Boolean)
+    .map(capitalizeFirst)
+    .join(' ')
+}
+
 function formatDateSpanish(date: Date): string {
   // ponytail: locale hardcoded; user-locale switching would be the upgrade path.
   const df = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -285,7 +296,8 @@ export default function Dashboard() {
         if (!meRes.ok) return
         const { user } = await meRes.json()
         const localPart = user.email?.split('@')[0] ?? ''
-        setDisplayName(localPart ? capitalizeFirst(localPart) : 'vos')
+        const formatted = formatDisplayName(localPart)
+        setDisplayName(formatted || 'vos')
 
         const todayRes = await fetch('/api/today')
         if (!todayRes.ok) throw new Error('Failed to load today')
@@ -590,10 +602,6 @@ export default function Dashboard() {
   const dateStr = formatDateSpanish(now)
   const todayYYYYMMDD = getTodayYYYYMMDD()
 
-  const focusIsInTodayList = focusTask
-    ? todayTasks.some((t) => t.id === focusTask.id) || focusTask.dueDate?.slice(0, 10) === todayYYYYMMDD
-    : false
-
   return (
     <>
       <style>{styles}</style>
@@ -630,18 +638,12 @@ export default function Dashboard() {
           {focusTask ? (
             <>
               <h2 className="font-serif text-2xl text-[#E3E2E2] leading-snug">{focusTask.title}</h2>
-              {focusIsInTodayList && (
-                <p className="mt-3 text-[11px] text-[#5A5A5A] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#A68966] inline-block" />
-                  En la lista de hoy
-                  <button
-                    onClick={handleReleaseFocus}
-                    className="ml-2 text-[#A68966] hover:underline"
-                  >
-                    Quitar enfoque
-                  </button>
-                </p>
-              )}
+              <button
+                onClick={handleReleaseFocus}
+                className="mt-3 text-[11px] text-[#A68966] hover:underline"
+              >
+                Quitar enfoque
+              </button>
             </>
           ) : (
             <p className="text-[#5A5A5A] text-sm italic leading-relaxed">
@@ -659,7 +661,9 @@ export default function Dashboard() {
           <p className="text-[#5A5A5A] text-sm">Nada pendiente. Capturá algo con ⌘K.</p>
         ) : (
           <div className="space-y-2">
-            {todayTasks.map((task) => {
+            {todayTasks
+              .filter((task) => !focusTask || task.id !== focusTask.id)
+              .map((task) => {
               const isPending = '_pending' in task
               const isDone = !isPending && task.status === 'DONE'
 
@@ -786,7 +790,7 @@ export default function Dashboard() {
                     'w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-150',
                     habit.completedToday
                       ? 'bg-[#A68966] border border-[#A68966] text-black'
-                      : 'bg-graphite-card border border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40 hover:text-[#A68966]',
+                      : 'bg-graphite-card border border-[#2A2A2D] text-[#A1A1AA] hover:border-[#A68966]/40 hover:text-[#E3E2E2]',
                   ].join(' ')}
                   aria-label={habit.completedToday ? `Desmarcar ${habit.name}` : `Completar ${habit.name}`}
                 >
