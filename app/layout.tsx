@@ -54,6 +54,7 @@ export default function RootLayout({
     <html
       lang="es"
       className={`${inter.variable} ${playfair.variable} antialiased`}
+      suppressHydrationWarning
     >
       <head>
         {/* Anti-FOUC: aplica clase .dark antes del primer paint */}
