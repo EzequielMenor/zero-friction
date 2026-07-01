@@ -146,9 +146,9 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-4 w-16 bg-graphite-border rounded" />
-        <div className="h-8 w-48 bg-graphite-border rounded" />
-        <div className="h-32 bg-graphite-card border border-graphite-border rounded-none mt-6" />
+        <div className="h-4 w-16 bg-border rounded" />
+        <div className="h-8 w-48 bg-border rounded" />
+        <div className="h-32 bg-surface border border-border rounded-none mt-6" />
       </div>
     )
   }
@@ -186,21 +186,21 @@ export default function SettingsPage() {
 
       {/* Resto de la página */}
       <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold mt-12">AJUSTES</p>
-      <h1 className="font-serif text-3xl text-[#E3E2E2] mt-1">Configuración de IA</h1>
-      <p className="text-sm text-[#5A5A5A] mt-1">
+      <h1 className="font-serif text-3xl text-fg mt-1">Configuración de IA</h1>
+      <p className="text-sm text-fg-faint mt-1">
         Personalizá el modelo de lenguaje y embeddings para tu cuenta.
       </p>
 
       <div className="mt-8 space-y-5">
         {/* Provider */}
         <div>
-          <label className="block text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mb-1.5">
+          <label className="block text-[10px] tracking-[0.15em] uppercase text-fg-faint mb-1.5">
             Proveedor
           </label>
           <select
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value as ProviderName)}
-            className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2.5 focus:outline-none focus:border-[#A68966]/40 transition-colors"
+            className="w-full bg-surface border border-border text-fg text-sm px-3 py-2.5 focus:outline-none focus:border-accent/40 transition-colors"
           >
             {PROVIDERS.map((p) => (
               <option key={p.name} value={p.name}>{p.name}</option>
@@ -210,7 +210,7 @@ export default function SettingsPage() {
 
         {/* LLM Base URL */}
         <div>
-          <label className="block text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mb-1.5">
+          <label className="block text-[10px] tracking-[0.15em] uppercase text-fg-faint mb-1.5">
             LLM Base URL
           </label>
           <input
@@ -219,11 +219,11 @@ export default function SettingsPage() {
             onChange={(e) => setLlmBaseUrl(e.target.value)}
             readOnly={provider !== CUSTOM_PROVIDER}
             placeholder={provider === CUSTOM_PROVIDER ? 'https://api.deepseek.com/v1' : ''}
-            className={`w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2.5 focus:outline-none focus:border-[#A68966]/40 transition-colors ${
+            className={`w-full bg-surface border border-border text-fg text-sm px-3 py-2.5 focus:outline-none focus:border-accent/40 transition-colors ${
               provider !== CUSTOM_PROVIDER ? 'opacity-60 cursor-not-allowed' : ''
             }`}
           />
-          <p className="text-[10px] text-[#5A5A5A] mt-1">
+          <p className="text-[10px] text-fg-faint mt-1">
             {provider === CUSTOM_PROVIDER
               ? 'Proveedor compatible con OpenAI (DeepSeek, OpenRouter, Groq…).'
               : 'URL fija del proveedor seleccionado. Elegí "Personalizado" para editarla.'}
@@ -232,7 +232,7 @@ export default function SettingsPage() {
 
         {/* LLM API Key */}
         <div>
-          <label className="block text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mb-1.5">
+          <label className="block text-[10px] tracking-[0.15em] uppercase text-fg-faint mb-1.5">
             LLM API Key
           </label>
           <input
@@ -241,23 +241,23 @@ export default function SettingsPage() {
             onChange={(e) => setLlmApiKey(e.target.value)}
             autoComplete="off"
             placeholder="••••••••"
-            className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2.5 focus:outline-none focus:border-[#A68966]/40 transition-colors"
+            className="w-full bg-surface border border-border text-fg text-sm px-3 py-2.5 focus:outline-none focus:border-accent/40 transition-colors"
           />
-          <p className="text-[10px] text-[#5A5A5A] mt-1">
+          <p className="text-[10px] text-fg-faint mt-1">
             Se almacena cifrada. Déjalo como •••••••• para mantener la actual.
           </p>
         </div>
 
         {/* LLM Model */}
         <div>
-          <label className="block text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mb-1.5">
+          <label className="block text-[10px] tracking-[0.15em] uppercase text-fg-faint mb-1.5">
             LLM Model
           </label>
           {chatModels.length > 0 ? (
             <select
               value={llmModel}
               onChange={(e) => setLlmModel(e.target.value)}
-              className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2.5 focus:outline-none focus:border-[#A68966]/40 transition-colors"
+              className="w-full bg-surface border border-border text-fg text-sm px-3 py-2.5 focus:outline-none focus:border-accent/40 transition-colors"
             >
               <option value="">Seleccionar modelo...</option>
               {chatModels.map((m) => (
@@ -270,21 +270,21 @@ export default function SettingsPage() {
               value={llmModel}
               onChange={(e) => setLlmModel(e.target.value)}
               placeholder="deepseek-chat, gpt-4o-mini"
-              className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2.5 focus:outline-none focus:border-[#A68966]/40 transition-colors"
+              className="w-full bg-surface border border-border text-fg text-sm px-3 py-2.5 focus:outline-none focus:border-accent/40 transition-colors"
             />
           )}
         </div>
 
         {/* Embedding Model */}
         <div>
-          <label className="block text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mb-1.5">
+          <label className="block text-[10px] tracking-[0.15em] uppercase text-fg-faint mb-1.5">
             Embedding Model
           </label>
           {embeddingModels.length > 0 ? (
             <select
               value={embeddingModel}
               onChange={(e) => setEmbeddingModel(e.target.value)}
-              className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2.5 focus:outline-none focus:border-[#A68966]/40 transition-colors"
+              className="w-full bg-surface border border-border text-fg text-sm px-3 py-2.5 focus:outline-none focus:border-accent/40 transition-colors"
             >
               <option value="">Seleccionar modelo...</option>
               {embeddingModels.map((m) => (
@@ -297,7 +297,7 @@ export default function SettingsPage() {
               value={embeddingModel}
               onChange={(e) => setEmbeddingModel(e.target.value)}
               placeholder="text-embedding-3-small"
-              className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2.5 focus:outline-none focus:border-[#A68966]/40 transition-colors"
+              className="w-full bg-surface border border-border text-fg text-sm px-3 py-2.5 focus:outline-none focus:border-accent/40 transition-colors"
             />
           )}
         </div>
@@ -306,7 +306,7 @@ export default function SettingsPage() {
       {/* Test result */}
       {testResult && (
         <p
-          className={`mt-4 text-sm ${testResult.ok ? 'text-[#4ade80]' : 'text-[#f87171]'}`}
+          className={`mt-4 text-sm ${testResult.ok ? 'text-success' : 'text-error'}`}
         >
           {testResult.message}
         </p>
@@ -316,13 +316,13 @@ export default function SettingsPage() {
       <div className="mt-6 flex gap-3">
         <button
           onClick={handleTest}
-          className="text-[10px] uppercase tracking-wider px-4 py-2.5 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+          className="text-[10px] uppercase tracking-wider px-4 py-2.5 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
         >
           Probar Conexión
         </button>
         <button
           onClick={handleSave}
-          className="text-[10px] uppercase tracking-wider px-5 py-2.5 bg-[#A68966] text-black hover:bg-[#b89a78] transition-colors font-semibold"
+          className="text-[10px] uppercase tracking-wider px-5 py-2.5 bg-accent text-accent-fg hover:bg-accent/90 transition-colors font-semibold"
         >
           Guardar Ajustes
         </button>
