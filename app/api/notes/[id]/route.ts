@@ -107,6 +107,14 @@ export async function PATCH(
     filteredUpdate.content = String(body.content)
   }
 
+  if (body.tags !== undefined) {
+    if (Array.isArray(body.tags)) {
+      filteredUpdate.tags = body.tags.map(String)
+    } else {
+      return NextResponse.json({ error: 'invalid tags' }, { status: 400 })
+    }
+  }
+
   if (body.domain !== undefined) {
     const domain = body.domain as string
     if (!VALID_DOMAINS.includes(domain as Domain)) {

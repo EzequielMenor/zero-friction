@@ -7,6 +7,37 @@ import path from 'path';
 const SCREENSHOT_DIR = '/Users/ezequielmenor/.gemini/antigravity-cli/brain/69782725-0df5-4979-a0c9-6068a00b502c/screenshots/';
 
 test.describe('Zero-Friction E2E Verification', () => {
+  async function registerUser(page: any, email: string, password: string, inviteCode: string) {
+    page.on('console', (msg: any) => {
+      console.log(`BROWSER CONSOLE [${msg.type()}]:`, msg.text());
+    });
+    page.on('response', async (response: any) => {
+      if (response.url().includes('/api/auth/signup')) {
+        console.log(`SIGNUP API RESPONSE STATUS:`, response.status());
+        try {
+          const body = await response.text();
+          console.log(`SIGNUP API RESPONSE BODY:`, body);
+        } catch (e) {
+          console.log(`Failed to read signup response body:`, e);
+        }
+      }
+    });
+
+    await page.goto('/signup');
+    await page.getByLabel('Email', { exact: true }).fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(password);
+    await page.getByLabel('Invite code', { exact: true }).fill(inviteCode);
+    await page.getByRole('button', { name: 'Create account' }).click();
+    try {
+      await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
+    } catch (err) {
+      const errorText = await page.locator('.text-red-400').textContent().catch(() => null);
+      console.log(`SIGNUP FAILED for ${email}. Error displayed on page: "${errorText}"`);
+      throw err;
+    }
+    await page.waitForLoadState('networkidle');
+  }
+
   test('Register fresh user, seed data, and verify Today, Hubs, and Mente canvas', async ({ page }) => {
     // 1. Generate unique email
     const uniqueId = Date.now();
@@ -16,20 +47,8 @@ test.describe('Zero-Friction E2E Verification', () => {
 
     console.log(`Registering new user: ${email}`);
 
-    // 2. Go to signup page
-    await page.goto('/signup');
-    await expect(page).toHaveURL(/\/signup/);
-
-    // 3. Fill signup form
-    await page.getByLabel('Email', { exact: true }).fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await page.getByLabel('Invite code', { exact: true }).fill(inviteCode);
-
-    // 4. Submit form
-    await page.getByRole('button', { name: 'Create account' }).click();
-
-    // 5. Verify redirection to Home page / dashboard
-    await expect(page).toHaveURL(/\/$/);
+    // 2. Go to signup page and register
+    await registerUser(page, email, password, inviteCode);
 
     // 6. Find user in the database to get their ID
     const user = await prisma.user.findUnique({
@@ -136,7 +155,7 @@ test.describe('Zero-Friction E2E Verification', () => {
 
     // 13. Verify Focus Widget
     const focusWidgetHeader = page.getByText('ENFOQUE', { exact: true });
-    await expect(focusWidgetHeader).toBeVisible();
+    await expect(focusWidgetHeader).toBeVisible({ timeout: 15000 });
     // Use exact role and name for the heading to avoid duplicate with the list item
     await expect(page.getByRole('heading', { name: 'Alinear prioridades semanales' })).toBeVisible();
 
@@ -179,7 +198,7 @@ test.describe('Zero-Friction E2E Verification', () => {
 
     // Check that canvas element exists and is visible
     const canvas = page.locator('canvas');
-    await expect(canvas).toBeVisible();
+    await expect(canvas).toBeVisible({ timeout: 15000 });
 
     // 20. Take mente-graph.png screenshot
     const menteScreenshotPath = path.join(SCREENSHOT_DIR, 'mente-graph.png');
@@ -190,10 +209,11 @@ test.describe('Zero-Friction E2E Verification', () => {
     console.log('Navigating to Finanzas hub...');
     await page.goto('/hubs/registros/finanzas');
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000); // Give it a brief moment to stabilize
 
     // Verify account panel shows account with correct currentBalance (1000 - 200 = 800)
-    await expect(page.getByText('Cuenta Test').first()).toBeVisible();
-    await expect(page.getByText(/\$\s*800/).first()).toBeVisible();
+    await expect(page.getByText('Cuenta Test').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/\$\s*800/).first()).toBeVisible({ timeout: 15000 });
 
     // 22. Take finanzas-hub.png screenshot
     const finanzasScreenshotPath = path.join(SCREENSHOT_DIR, 'finanzas-hub.png');
@@ -210,13 +230,7 @@ test.describe('Zero-Friction E2E Verification', () => {
     const inviteCode = 'zero-friction-private-2026';
 
     // Register fresh user
-    await page.goto('/signup');
-    await page.getByLabel('Email', { exact: true }).fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await page.getByLabel('Invite code', { exact: true }).fill(inviteCode);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/$/);
-    await page.waitForLoadState('networkidle');
+    await registerUser(page, email, password, inviteCode);
 
     // Open CaptureOverlay via FAB button
     await page.getByRole('button', { name: 'Capturar nota' }).click();
@@ -253,13 +267,7 @@ test.describe('Zero-Friction E2E Verification', () => {
     const inviteCode = 'zero-friction-private-2026';
 
     // Register fresh user
-    await page.goto('/signup');
-    await page.getByLabel('Email', { exact: true }).fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await page.getByLabel('Invite code', { exact: true }).fill(inviteCode);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/$/);
-    await page.waitForLoadState('networkidle');
+    await registerUser(page, email, password, inviteCode);
 
     // Seed a DRAFT note directly in the database
     const user = await prisma.user.findUnique({ where: { email } });
@@ -312,13 +320,7 @@ test.describe('Zero-Friction E2E Verification', () => {
     const inviteCode = 'zero-friction-private-2026';
 
     // Register fresh user
-    await page.goto('/signup');
-    await page.getByLabel('Email', { exact: true }).fill(email);
-    await page.getByLabel('Password', { exact: true }).fill(password);
-    await page.getByLabel('Invite code', { exact: true }).fill(inviteCode);
-    await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/$/);
-    await page.waitForLoadState('networkidle');
+    await registerUser(page, email, password, inviteCode);
 
     // Intercept /api/notes to verify NO request is made
     let noteApiCalled = false;

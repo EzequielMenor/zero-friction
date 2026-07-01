@@ -45,11 +45,10 @@ const STATUS_LABEL: Record<NoteStatus, string> = {
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
 function toYMD(d: Date): string {
-  // ponytail: spec recommends string comparison (YYYY-MM-DD) to avoid Date
-  // drift; we slice the ISO so cell and dueDate live in the same coordinate
-  // system. Same trade-off as the rest of the project — fine for west-of-UTC
-  // users, can be one day off east of UTC; upgrade path is user-tz.
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const r = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${r}`
 }
 
 function capitalizeFirst(s: string): string {

@@ -65,6 +65,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     }
 
+    const isImportant = body?.isImportant !== undefined ? Boolean(body.isImportant) : false
+    const tags = Array.isArray(body?.tags) ? body.tags.map(String) : []
+
     const note = await prisma.note.create({
       data: {
         userId: session.userId,
@@ -73,7 +76,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         domain,
         status,
         dueDate,
-        tags: [],
+        isImportant,
+        tags,
         suggestedGoals: [],
       },
     })

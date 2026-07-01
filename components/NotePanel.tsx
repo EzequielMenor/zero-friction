@@ -28,6 +28,8 @@ export interface NoteDraft {
   domain: NoteDomain
   status: NoteStatus
   dueDate?: string | null
+  isImportant?: boolean
+  tags?: string[]
 }
 
 function formatInputDate(dateStr: string | null | undefined): string {
@@ -143,6 +145,8 @@ export function NotePanel({
   const [domain, setDomain] = useState<NoteDomain>(draft?.domain ?? note?.domain ?? 'PERSONAL')
   const [status, setStatus] = useState<NoteStatus>(draft?.status ?? note?.status ?? 'ACTIVE')
   const [dueDate, setDueDate] = useState<string>(formatInputDate(draft?.dueDate ?? note?.dueDate))
+  const [isImportant, setIsImportant] = useState<boolean>(draft?.isImportant ?? note?.isImportant ?? false)
+  const [tagsText, setTagsText] = useState<string>((draft?.tags ?? note?.tags ?? []).join(', '))
   const [isEditing, setIsEditing] = useState(isCreateMode)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -193,6 +197,8 @@ export function NotePanel({
             domain,
             status,
             dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+            isImportant,
+            tags: tagsText.split(',').map((t) => t.trim()).filter(Boolean),
           }),
         })
         if (!res.ok) {
@@ -215,6 +221,8 @@ export function NotePanel({
           domain,
           status,
           dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+          isImportant,
+          tags: tagsText.split(',').map((t) => t.trim()).filter(Boolean),
         }),
       })
       if (!res.ok) {
@@ -228,6 +236,8 @@ export function NotePanel({
       setDomain(updated.domain)
       setStatus(updated.status)
       setDueDate(formatInputDate(updated.dueDate))
+      setIsImportant(updated.isImportant)
+      setTagsText((updated.tags ?? []).join(', '))
       setIsEditing(false)
       onUpdate?.(updated)
     } catch (err) {
@@ -248,6 +258,8 @@ export function NotePanel({
     setDomain(note.domain)
     setStatus(note.status)
     setDueDate(formatInputDate(note.dueDate))
+    setIsImportant(note.isImportant)
+    setTagsText((note.tags ?? []).join(', '))
     setIsEditing(false)
     setError(null)
   }
@@ -271,7 +283,7 @@ export function NotePanel({
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Título de la nota"
+                    placeholder={domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Nombre de la tarea' : 'Título de la nota'}
                     className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] font-serif text-2xl leading-snug px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
                   />
                   <div className="mt-2">
@@ -317,6 +329,21 @@ export function NotePanel({
                           onChange={(e) => setDueDate(e.target.value)}
                           className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
                         />
+                      </div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="isImportant"
+                          checked={isImportant}
+                          onChange={(e) => setIsImportant(e.target.checked)}
+                          className="rounded border-graphite-border bg-graphite-card text-[#A68966] focus:ring-0"
+                        />
+                        <label
+                          htmlFor="isImportant"
+                          className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] select-none cursor-pointer"
+                        >
+                          Marcar como Importante (★)
+                        </label>
                       </div>
                     </>
                   )}
@@ -441,15 +468,29 @@ export function NotePanel({
           {/* Edit-mode content body */}
           {isEditing && (
             <>
-              <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
-                Contenido
-              </label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Escribí el contenido de la nota…"
-                className="w-full h-64 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm font-sans leading-relaxed px-3 py-2 focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
-              />
+              <div className="mt-4">
+                <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                  {domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Descripción' : 'Contenido'}
+                </label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Escribí la descripción o sub-tareas…' : 'Escribí el contenido de la nota…'}
+                  className="w-full h-48 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm font-sans leading-relaxed px-3 py-2 focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+                />
+              </div>
+              <div className="mt-4">
+                <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                  Etiquetas (separadas por comas)
+                </label>
+                <input
+                  type="text"
+                  value={tagsText}
+                  onChange={(e) => setTagsText(e.target.value)}
+                  placeholder="ej: programacion, ideas, gym"
+                  className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+                />
+              </div>
               {error && (
                 <p className="text-[#F87171] text-xs mt-2">{error}</p>
               )}
