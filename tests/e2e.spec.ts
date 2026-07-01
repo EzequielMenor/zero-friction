@@ -192,8 +192,8 @@ test.describe('Zero-Friction E2E Verification', () => {
     await page.waitForLoadState('networkidle');
 
     // Verify account panel shows account with correct currentBalance (1000 - 200 = 800)
-    await expect(page.getByText('Cuenta Test')).toBeVisible();
-    await expect(page.getByText('$800')).toBeVisible();
+    await expect(page.getByText('Cuenta Test').first()).toBeVisible();
+    await expect(page.getByText(/\$\s*800/).first()).toBeVisible();
 
     // 22. Take finanzas-hub.png screenshot
     const finanzasScreenshotPath = path.join(SCREENSHOT_DIR, 'finanzas-hub.png');
