@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Toast } from '@/components/Toast'
+import { useTheme } from '@/components/ThemeProvider'
 
 interface Config {
   llmBaseUrl: string
@@ -34,6 +35,7 @@ function providerFromUrl(url: string): ProviderName {
 }
 
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme()
   const [provider, setProvider] = useState<ProviderName>(CUSTOM_PROVIDER)
   const [llmBaseUrl, setLlmBaseUrl] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
@@ -153,7 +155,37 @@ export default function SettingsPage() {
 
   return (
     <>
-      <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase font-semibold">AJUSTES</p>
+      {/* Apariencia */}
+      <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold">APARIENCIA</p>
+      <h1 className="font-serif text-3xl text-fg mt-1">Tema</h1>
+      <p className="text-sm text-fg-faint mt-1">
+        Cambia entre modo oscuro (graphite) y modo claro (sepia).
+      </p>
+      <div className="mt-4 inline-flex border border-border">
+        <button
+          onClick={() => setTheme('dark')}
+          className={`text-[10px] uppercase tracking-wider px-5 py-2.5 transition-colors ${
+            theme === 'dark'
+              ? 'bg-accent text-accent-fg font-semibold'
+              : 'text-fg-subtle hover:text-accent'
+          }`}
+        >
+          Oscuro
+        </button>
+        <button
+          onClick={() => setTheme('light')}
+          className={`text-[10px] uppercase tracking-wider px-5 py-2.5 border-l border-border transition-colors ${
+            theme === 'light'
+              ? 'bg-accent text-accent-fg font-semibold'
+              : 'text-fg-subtle hover:text-accent'
+          }`}
+        >
+          Claro
+        </button>
+      </div>
+
+      {/* Resto de la página */}
+      <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold mt-12">AJUSTES</p>
       <h1 className="font-serif text-3xl text-[#E3E2E2] mt-1">Configuración de IA</h1>
       <p className="text-sm text-[#5A5A5A] mt-1">
         Personalizá el modelo de lenguaje y embeddings para tu cuenta.
