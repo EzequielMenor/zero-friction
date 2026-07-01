@@ -4,6 +4,7 @@ import "./globals.css";
 import CaptureOverlay from '@/components/CaptureOverlay';
 import NavMenu from '@/components/NavMenu';
 import ServiceWorkerRegistrar from '@/components/pwa/ServiceWorkerRegistrar';
+import { ThemeProvider, themeScript } from '@/components/ThemeProvider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -52,26 +53,32 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${inter.variable} ${playfair.variable} dark antialiased`}
+      className={`${inter.variable} ${playfair.variable} antialiased`}
     >
-      <body className="min-h-screen bg-graphite text-[#A1A1AA] font-sans selection:bg-[#A68966] selection:text-black flex flex-col relative">
-        {/* Noise texture */}
-        <div
-          className="fixed inset-0 pointer-events-none z-0 opacity-[0.03]"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}
-        />
+      <head>
+        {/* Anti-FOUC: aplica clase .dark antes del primer paint */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="min-h-screen bg-bg text-fg-muted font-sans selection:bg-accent selection:text-accent-fg flex flex-col relative">
+        <ThemeProvider>
+          {/* Noise texture */}
+          <div
+            className="fixed inset-0 pointer-events-none z-0 opacity-[0.03]"
+            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")' }}
+          />
 
-        {/* Sidebar nav (desktop) + Bottom bar (mobile) */}
-        <NavMenu />
+          {/* Sidebar nav (desktop) + Bottom bar (mobile) */}
+          <NavMenu />
 
-        {/* Route group content — (auth) has no offset; (app) adds its own ml-[220px] */}
-        {children}
+          {/* Route group content — (auth) has no offset; (app) adds its own ml-[220px] */}
+          {children}
 
-        {/* Capture Overlay — floating trigger */}
-        <CaptureOverlay />
+          {/* Capture Overlay — floating trigger */}
+          <CaptureOverlay />
 
-        {/* PWA service worker — solo se registra en producción */}
-        <ServiceWorkerRegistrar />
+          {/* PWA service worker — solo se registra en producción */}
+          <ServiceWorkerRegistrar />
+        </ThemeProvider>
       </body>
     </html>
   );
