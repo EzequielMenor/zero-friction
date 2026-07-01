@@ -79,7 +79,33 @@ export async function GET(): Promise<NextResponse> {
     }
   }
 
-  const netBalance = totalIncome - totalExpenses
+  // Fetch active subscriptions
+  const subscriptions = await prisma.subscription.findMany({
+    where: { userId },
+    orderBy: { name: 'asc' },
+  })
+
+  // Fetch accounts with all historical transactions
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    include: { transactions: true },
+  })
+
+  const accountOutputs = accounts.map((acc) => {
+    const transactionSum = acc.transactions.reduce((sum, t) => sum + t.amount, 0)
+    return {
+      id: acc.id,
+      name: acc.name,
+      initialBalance: acc.initialBalance,
+      currentBalance: acc.initialBalance + transactionSum,
+      currency: acc.currency,
+    }
+  })
+
+  const totalInitialBalance = accountOutputs.reduce((sum, a) => sum + a.initialBalance, 0)
+
+  const netBalance = totalInitialBalance + totalIncome - totalExpenses
 
   // Category distribution
   const categoryDistribution: CategoryDistribution[] = Object.entries(expensesByCategory).map(
@@ -89,12 +115,6 @@ export async function GET(): Promise<NextResponse> {
       percentage: totalExpenses > 0 ? Math.round((sum / totalExpenses) * 10000) / 100 : 0,
     })
   )
-
-  // Fetch active subscriptions
-  const subscriptions = await prisma.subscription.findMany({
-    where: { userId },
-    orderBy: { name: 'asc' },
-  })
 
   const transactionOutputs: TransactionOutput[] = transactions.map((t) => ({
     id: t.id,
@@ -120,6 +140,8 @@ export async function GET(): Promise<NextResponse> {
       categoryDistribution,
       subscriptions: subscriptionOutputs,
       startOfCycle: startOfCycle.toISOString(),
+      totalInitialBalance: Math.round(totalInitialBalance * 100) / 100,
+      accounts: accountOutputs,
     },
     { headers: { 'Cache-Control': 'no-store' } }
   )
@@ -133,14 +155,14 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
   }
 
-  let body: { amount?: unknown; description?: unknown; date?: unknown; category?: unknown }
+  let body: { amount?: unknown; description?: unknown; date?: unknown; category?: unknown; accountId?: unknown }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 })
   }
 
-  const { amount, description, date, category } = body
+  const { amount, description, date, category, accountId } = body
 
   if (typeof amount !== 'number' || typeof description !== 'string' || !description.trim()) {
     return NextResponse.json({ error: 'amount (number) and description (string) are required' }, { status: 400 })
@@ -152,6 +174,12 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   if (typeof category !== 'string' || !category.trim()) {
     return NextResponse.json({ error: 'category (string) is required' }, { status: 400 })
+  }
+
+  const validatedAccountId = typeof accountId === 'string' ? accountId : undefined
+
+  if (accountId !== undefined && !validatedAccountId) {
+    return NextResponse.json({ error: 'accountId must be a string' }, { status: 400 })
   }
 
   const parsedDate = new Date(date)
@@ -166,6 +194,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       description: description.trim(),
       date: parsedDate,
       category: category.trim(),
+      accountId: validatedAccountId,
     },
   })
 
