@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import InboxSection from '@/components/InboxSection'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,30 +23,7 @@ interface TempNote extends Omit<Note, 'status' | 'updatedAt'> {
   _pending?: true
 }
 
-interface DraftPending {
-  id: string
-  title: string
-  content: string
-  pending: true
-}
 
-interface DraftResolved {
-  id: string
-  serverId: string
-  pending: false
-  ok: boolean
-  data: {
-    id: string
-    domain: string
-    title: string
-    metadata: {
-      dueDate: string | null
-      isImportant: boolean
-    }
-  }
-}
-
-type DraftEvent = DraftPending | DraftResolved
 
 interface Habit {
   id: string
@@ -101,12 +79,7 @@ function getTodayYYYYMMDD(): string {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10)
 }
 
-function isTodayDraft(text: string): boolean {
-  const lower = text.toLowerCase()
-  if (lower.includes('hoy') || lower.includes('today')) return true
-  const dateRegex = /\b\d{1,2}\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i
-  return dateRegex.test(text)
-}
+
 
 // ─── Skeleton ──────────────────────────────────────────────────────────────────
 
@@ -317,76 +290,7 @@ export default function Dashboard() {
     load()
   }, [])
 
-  // ── Draft Listener ────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    const todayYYYYMMDD = getTodayYYYYMMDD()
-
-    function onDraft(e: Event) {
-      const detail = (e as CustomEvent<DraftEvent>).detail
-
-      if (detail.pending) {
-        // PENDING draft
-        const text = detail.content || detail.title
-        if (!isTodayDraft(text)) return
-
-        // Avoid duplicate tracking
-        setTodayTasks((prev) => {
-          if (prev.some((t) => t.id === detail.id)) return prev
-          const temp: TempNote = {
-            id: detail.id,
-            title: detail.title,
-            content: detail.content,
-            status: 'ACTIVE',
-            isImportant: text.includes('!'),
-            dueDate: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-            _pending: true,
-          }
-          return [...prev, temp]
-        })
-      } else {
-        // RESOLVED draft
-        const resolved = detail as DraftResolved
-
-        if (!resolved.ok) {
-          // Failed capture — remove temp card silently
-          setTodayTasks((prev) => prev.filter((t) => t.id !== resolved.id))
-          return
-        }
-
-        const { data } = resolved
-        if (data.domain !== 'PROYECTOS') {
-          // Domain mismatch — remove temp card
-          setTodayTasks((prev) => prev.filter((t) => t.id !== resolved.id))
-          return
-        }
-
-        const dueDateStr = data.metadata.dueDate
-        if (!dueDateStr || dueDateStr !== todayYYYYMMDD) {
-          // Due date not today — remove temp card
-          setTodayTasks((prev) => prev.filter((t) => t.id !== resolved.id))
-          return
-        }
-
-        // Replace temp card with real note
-        const realNote: Note = {
-          id: data.id,
-          title: data.title,
-          content: '',
-          status: 'ACTIVE',
-          isImportant: data.metadata.isImportant,
-          dueDate: dueDateStr,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-        setTodayTasks((prev) => prev.map((t) => (t.id === resolved.id ? realNote : t)))
-      }
-    }
-
-    window.addEventListener('zf:draft', onDraft as EventListener)
-    return () => window.removeEventListener('zf:draft', onDraft as EventListener)
-  }, [])
 
   // ── Optimistic Mutations ─────────────────────────────────────────────────────
 
@@ -600,7 +504,6 @@ export default function Dashboard() {
   const hour = now.getHours()
   const greeting = getGreeting(hour)
   const dateStr = formatDateSpanish(now)
-  const todayYYYYMMDD = getTodayYYYYMMDD()
 
   return (
     <>
@@ -652,6 +555,9 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Inbox — GTD capture processing queue */}
+      <InboxSection showToast={showToast} />
 
       {/* Today's Tasks */}
       <div className="mt-10">
