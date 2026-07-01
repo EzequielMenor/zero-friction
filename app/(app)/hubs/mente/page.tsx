@@ -305,7 +305,7 @@ function GraphCanvas({ nodes, links, onNodeClick }: GraphCanvasProps) {
     <canvas
       ref={canvasRef}
       className="w-full h-full touch-none"
-      style={{ cursor: 'grab', background: '#0B0B0C' }}
+      style={{ cursor: 'grab', background: 'var(--bg)' }}
       onMouseMove={(e) => {
         handleMouseMove(e)
         handlePanMove(e)

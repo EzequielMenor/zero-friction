@@ -129,7 +129,7 @@ export default function HubContent({ slug }: { slug: string }) {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-20 bg-border w-48 rounded" />
+        <div className="h-20 bg-fg-faint/30 w-48 rounded" />
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-24 border border-border bg-surface" />

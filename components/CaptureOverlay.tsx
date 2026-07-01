@@ -565,7 +565,7 @@ function ProgressRing({
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke="#1C1C1F"
+        stroke="var(--border-subtle)"
         strokeWidth={strokeWidth}
       />
       <circle

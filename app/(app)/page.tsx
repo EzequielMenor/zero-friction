@@ -90,9 +90,9 @@ function getTodayYYYYMMDD(): string {
 function Skeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="h-4 w-12 bg-border rounded" />
-      <div className="h-8 w-64 bg-border rounded" />
-      <div className="h-3 w-48 bg-border rounded" />
+      <div className="h-4 w-12 bg-fg-faint/30 rounded" />
+      <div className="h-8 w-64 bg-fg-faint/30 rounded" />
+      <div className="h-3 w-48 bg-fg-faint/30 rounded" />
       <div className="mt-10 h-32 border border-border rounded-none bg-surface" />
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (

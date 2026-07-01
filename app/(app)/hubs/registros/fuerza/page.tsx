@@ -145,7 +145,7 @@ function VolumeChart({ data }: { data: VolumeEntry[] }) {
           x2={W - PAD_R}
           y1={y}
           y2={y}
-          stroke="#1C1C1F"
+          stroke="var(--border-subtle)"
           strokeWidth={1}
         />
       ))}
@@ -196,8 +196,8 @@ function VolumeChart({ data }: { data: VolumeEntry[] }) {
       ))}
 
       {/* Axis */}
-      <line x1={PAD_L} x2={PAD_L} y1={PAD_T} y2={H - PAD_B} stroke="#1C1C1F" strokeWidth={1} />
-      <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#1C1C1F" strokeWidth={1} />
+      <line x1={PAD_L} x2={PAD_L} y1={PAD_T} y2={H - PAD_B} stroke="var(--border-subtle)" strokeWidth={1} />
+      <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="var(--border-subtle)" strokeWidth={1} />
     </svg>
   )
 }
@@ -263,7 +263,7 @@ function OneRMChart({
       {/* Grid lines */}
       {Array.from({ length: 4 }, (_, i) => {
         const y = PAD_T + ((i * (H - PAD_T - PAD_B)) / 3)
-        return <line key={i} x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="#1C1C1F" strokeWidth={1} />
+        return <line key={i} x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="var(--border-subtle)" strokeWidth={1} />
       })}
 
       {/* Line */}
@@ -286,8 +286,8 @@ function OneRMChart({
       })}
 
       {/* Axis */}
-      <line x1={PAD_L} x2={PAD_L} y1={PAD_T} y2={H - PAD_B} stroke="#1C1C1F" strokeWidth={1} />
-      <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="#1C1C1F" strokeWidth={1} />
+      <line x1={PAD_L} x2={PAD_L} y1={PAD_T} y2={H - PAD_B} stroke="var(--border-subtle)" strokeWidth={1} />
+      <line x1={PAD_L} x2={W - PAD_R} y1={H - PAD_B} y2={H - PAD_B} stroke="var(--border-subtle)" strokeWidth={1} />
     </svg>
   )
 }
@@ -479,7 +479,7 @@ export default function FuerzaPage() {
           <DumbbellIcon size={36} />
           <h1 className="font-serif text-3xl text-fg">Fuerza</h1>
         </div>
-        <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
+        <div className="h-px bg-gradient-to-r from-accent/60 via-accent/20 to-transparent mt-4 mb-3" />
         <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint">
           {metrics.workouts.length} entrenamientos · {metrics.personalRecords.length} ejercicios con PR
         </p>

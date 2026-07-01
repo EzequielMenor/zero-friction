@@ -24,7 +24,7 @@ const COLS = 12
 const ROWS = 7
 
 const COLORS = {
-  empty: '#1C1C1F',
+  empty: 'var(--border-subtle)',
   done: '#34D399',
   doneToday: '#A68966',
 } as const
@@ -365,7 +365,7 @@ export default function HabitosPage() {
           <FlameIcon size={36} />
           <h1 className="font-serif text-3xl text-fg">Hábitos</h1>
         </div>
-        <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
+        <div className="h-px bg-gradient-to-r from-accent/60 via-accent/20 to-transparent mt-4 mb-3" />
         <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint">
           {data.habits.length === 0
             ? 'Sin hábitos registrados'

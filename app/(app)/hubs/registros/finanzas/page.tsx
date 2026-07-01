@@ -98,8 +98,8 @@ function CircularChart({ data }: { data: CategoryDistribution[] }) {
     return (
       <div className="flex flex-col items-center justify-center" style={{ minHeight: SIZE }}>
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
-          <circle cx={CX} cy={CY} r={R} fill="none" stroke="#1C1C1F" strokeWidth="20" />
-          <circle cx={CX} cy={CY} r={INNER_R} fill="#0D0D0F" />
+          <circle cx={CX} cy={CY} r={R} fill="none" stroke="var(--border-subtle)" strokeWidth="20" />
+          <circle cx={CX} cy={CY} r={INNER_R} fill="var(--bg)" />
         </svg>
         <p className="text-fg-faint text-xs italic mt-4">Sin gastos registrados</p>
       </div>
@@ -142,7 +142,7 @@ function CircularChart({ data }: { data: CategoryDistribution[] }) {
         {segments.map((seg, i) => (
           <path key={i} d={seg.pathData} fill={seg.color} fillOpacity={0.85} />
         ))}
-        <circle cx={CX} cy={CY} r={INNER_R} fill="#0D0D0F" />
+        <circle cx={CX} cy={CY} r={INNER_R} fill="var(--bg)" />
         <text
           x={CX}
           y={CY - 6}
@@ -751,7 +751,7 @@ export default function FinanzasPage() {
           <WalletIcon size={36} />
           <h1 className="font-serif text-3xl text-fg">Finanzas</h1>
         </div>
-        <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
+        <div className="h-px bg-gradient-to-r from-accent/60 via-accent/20 to-transparent mt-4 mb-3" />
         <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint">
           {data.transactions.length} transacciones en el ciclo actual
         </p>

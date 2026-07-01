@@ -146,8 +146,8 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-4 w-16 bg-border rounded" />
-        <div className="h-8 w-48 bg-border rounded" />
+        <div className="h-4 w-16 bg-fg-faint/30 rounded" />
+        <div className="h-8 w-48 bg-fg-faint/30 rounded" />
         <div className="h-32 bg-surface border border-border rounded-none mt-6" />
       </div>
     )

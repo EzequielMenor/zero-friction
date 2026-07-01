@@ -359,7 +359,7 @@ export default function CalendarPage() {
               </button>
             </div>
           </div>
-          <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4" />
+          <div className="h-px bg-gradient-to-r from-accent/60 via-accent/20 to-transparent mt-4" />
         </div>
 
         {/* Grid + Sidebar */}

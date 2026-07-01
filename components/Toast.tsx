@@ -16,7 +16,7 @@ export function Toast({ message, href, onDismiss }: ToastProps) {
   }, [onDismiss])
 
   return (
-    <div className="fixed bottom-8 right-6 z-50 flex items-center gap-3 bg-border border border-accent/40 px-4 py-2 text-sm text-fg animate-fade-in">
+    <div className="fixed bottom-8 right-6 z-50 flex items-center gap-3 bg-surface-elevated border border-accent/40 px-4 py-2 text-sm text-fg animate-fade-in">
       <span>{message}</span>
       {href && (
         <Link href={href} className="text-accent hover:underline whitespace-nowrap">
