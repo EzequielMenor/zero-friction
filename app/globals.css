@@ -1,12 +1,63 @@
 @import "tailwindcss";
 
-@theme {
-  --color-graphite: #0B0B0C;
-  --color-graphite-card: #121214;
-  --color-graphite-border: #1C1C1F;
+/* ──────────────────────────────────────────────────────────────
+ * Theme tokens — cambia aquí las paletas para que se apliquen en
+ * toda la app. Modo light por defecto (:root), modo dark bajo .dark.
+ * ────────────────────────────────────────────────────────────── */
+
+:root {
+  /* LIGHT (sepia/papel cálido) — default */
+  --bg:              #F5EFE6;
+  --surface:         #FAF6EE;
+  --surface-elevated:#FFFCF5;
+  --border:          #E5DDD0;
+  --border-subtle:   #D8CFC0;
+  --fg:              #2A2520;
+  --fg-muted:        #6B635A;
+  --fg-subtle:       #857A6E;
+  --fg-faint:        #9A8E80;
+  --accent:          #A68966;
+  --accent-fg:       #FFFFFF;
+  --success:         #16a34a;
+  --error:           #dc2626;
 }
 
-/* Shared animation keyframes — deduplicated from inline <style> blocks */
+.dark {
+  /* DARK (graphite — original) */
+  --bg:              #0B0B0C;
+  --surface:         #121214;
+  --surface-elevated:#18181B;
+  --border:          #1C1C1F;
+  --border-subtle:   #2A2A2D;
+  --fg:              #E3E2E2;
+  --fg-muted:        #A1A1AA;
+  --fg-subtle:       #7A7A7A;
+  --fg-faint:        #5A5A5A;
+  --accent:          #A68966;
+  --accent-fg:       #000000;
+  --success:         #4ade80;
+  --error:           #f87171;
+}
+
+/* Mapeo a Tailwind v4 — `inline` hace que las utilidades se generen
+ * dinámicamente desde las CSS vars, así cambian solas al togglear tema. */
+@theme inline {
+  --color-bg:              var(--bg);
+  --color-surface:         var(--surface);
+  --color-surface-elevated:var(--surface-elevated);
+  --color-border:          var(--border);
+  --color-border-subtle:   var(--border-subtle);
+  --color-fg:              var(--fg);
+  --color-fg-muted:        var(--fg-muted);
+  --color-fg-subtle:       var(--fg-subtle);
+  --color-fg-faint:        var(--fg-faint);
+  --color-accent:          var(--accent);
+  --color-accent-fg:       var(--accent-fg);
+  --color-success:         var(--success);
+  --color-error:           var(--error);
+}
+
+/* Keyframes compartidos — deduplicados de bloques <style> inline */
 @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
 @keyframes fade-out { from { opacity: 1 } to { opacity: 0 } }
 @keyframes slide-out { from { opacity: 1; transform: translateX(0) } to { opacity: 0; transform: translateX(16px) } }
@@ -30,7 +81,6 @@
 .animate-pulse-dot { animation: pulse-dot 1s ease-in-out infinite }
 .animate-scale-in { animation: scale-in 150ms ease-out forwards }
 
-/* Si quieres mantener tu textura de ruido, la mantienes aquí debajo */
 .noise-bg {
   position: fixed;
   top: 0; left: 0; width: 100vw; height: 100vh;
