@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
+import { emitNoteProcessed } from '@/lib/draft-events'
 import {
   runCaptureChatCompletion,
   enrichDraftNote,
+  createTransactionFromParsed,
+  createOrToggleHabitLogFromParsed,
+  createWorkoutFromParsed,
   type ParsedCapture,
 } from '@/lib/parse-capture'
 
@@ -16,102 +20,6 @@ async function getSession(
   const token = cookieStore.get(AUTH_COOKIE)?.value
   if (!token) return null
   return verifySession(token)
-}
-
-// ─── REGISTROS branch helpers (Task 5.6) ──────────────────────────────────────
-// ponytail: lifted from /api/capture so the async /process endpoint can route
-// the same way. Each helper returns the new entity id; the caller deletes the
-// original Note via CAS-gated deleteMany so a lost race is a no-op.
-
-async function createTransactionFromParsed(
-  userId: string,
-  parsed: ParsedCapture
-): Promise<{ id: string; kind: 'finanzas' }> {
-  const tx = await prisma.transaction.create({
-    data: {
-      userId,
-      amount: parsed.metadata.recordData.value ?? 0,
-      description:
-        parsed.metadata.recordData.name ?? parsed.cleanedTitle,
-      date: new Date(),
-      category: parsed.metadata.recordData.category ?? 'VARIOS',
-    },
-  })
-  return { id: tx.id, kind: 'finanzas' }
-}
-
-async function createOrToggleHabitLogFromParsed(
-  userId: string,
-  parsed: ParsedCapture
-): Promise<{ id: string; kind: 'habito' }> {
-  const habitName = parsed.metadata.recordData.name ?? parsed.cleanedTitle
-
-  // Find-then-create: Habit has no unique index on (userId, name), so a true
-  // upsert would need one. Ponytail: matches /api/capture's existing pattern.
-  let habit = await prisma.habit.findFirst({
-    where: { userId, name: { equals: habitName } },
-  })
-  if (!habit) {
-    habit = await prisma.habit.create({
-      data: { userId, name: habitName, frequency: 'daily' },
-    })
-  }
-
-  // Toggle today's log: create on first hit, flip `completed` thereafter.
-  // Ponytail: normalize to midnight so @@unique([habitId, date]) actually works
-  // as "one log per day" instead of collapsing to "one log per millisecond".
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const existing = await prisma.habitLog.findUnique({
-    where: { habitId_date: { habitId: habit.id, date: today } },
-  })
-
-  const log = existing
-    ? await prisma.habitLog.update({
-        where: { id: existing.id },
-        data: { completed: !existing.completed },
-      })
-    : await prisma.habitLog.create({
-        data: { habitId: habit.id, date: today, completed: true },
-      })
-
-  return { id: log.id, kind: 'habito' }
-}
-
-async function createWorkoutFromParsed(
-  userId: string,
-  parsed: ParsedCapture
-): Promise<{ id: string; kind: 'gimnasio' }> {
-  const exerciseName =
-    parsed.metadata.recordData.name ?? parsed.cleanedTitle
-  const weight = parsed.metadata.recordData.value ?? 0
-
-  // Workout has @@unique([userId, date]) → one workout per user per day.
-  // Ponytail: matches the /api/registros/fuerza/import convention.
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const workout = await prisma.workout.upsert({
-    where: { userId_date: { userId, date: today } },
-    create: { userId, title: parsed.cleanedTitle, date: today },
-    update: {},
-  })
-
-  // ponytail: parse-capture doesn't extract reps, so default to 1. Extend the
-  // schema if reps become a hard requirement; right now "did the exercise once"
-  // is the closest meaningful truth without hallucinating a number.
-  await prisma.workoutSet.create({
-    data: {
-      workoutId: workout.id,
-      exerciseName,
-      weight,
-      reps: 1,
-      setType: 'normal',
-    },
-  })
-
-  return { id: workout.id, kind: 'gimnasio' }
 }
 
 // ─── POST /api/notes/[id]/process ──────────────────────────────────────────────
@@ -163,6 +71,11 @@ export async function POST(
       where: { id: noteId, userId: session.userId, status: 'DRAFT' },
       data: { status: 'NEEDS_REVIEW' },
     })
+    emitNoteProcessed({
+      noteId,
+      domain: 'NEEDS_REVIEW',
+      status: 'promoted',
+    })
     return NextResponse.json(
       { status: 'promoted', noteId, promotedToReview: true, promotedCount: promoted.count },
       { status: 200 }
@@ -202,8 +115,11 @@ export async function POST(
       })
 
       if (deleted.count === 0) {
+        emitNoteProcessed({ noteId, domain: recordType, status: 'already_processed' })
         return NextResponse.json({ alreadyProcessed: true }, { status: 200 })
       }
+
+      emitNoteProcessed({ noteId, domain: recordType, status: 'ok' })
 
       return NextResponse.json({
         status: 'ok',
@@ -221,8 +137,11 @@ export async function POST(
   const updated = await enrichDraftNote(noteId, session.userId, parsed)
 
   if (updated === null) {
+    emitNoteProcessed({ noteId, domain: parsed.domain, status: 'already_processed' })
     return NextResponse.json({ alreadyProcessed: true }, { status: 200 })
   }
+
+  emitNoteProcessed({ noteId, domain: updated.domain, status: 'ok' })
 
   return NextResponse.json({
     note: {

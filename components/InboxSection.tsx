@@ -25,12 +25,19 @@ type CardState =
   | { tag: 'processing' }
   | { tag: 'error'; message: string }
 
+// SSE payload — debe matchear `NoteProcessedEvent` en lib/draft-events.ts.
+interface SSEEvent {
+  noteId: string
+  domain: string
+  status: 'ok' | 'promoted' | 'already_processed'
+}
+
 // ─── InboxSection ──────────────────────────────────────────────────────────────
 
 export default function InboxSection({
   showToast,
 }: {
-  showToast: (message: string, tone?: 'success' | 'error') => void
+  showToast: (message: string, tone?: 'success' | 'error', domain?: string) => void
 }) {
   const [cards, setCards] = useState<Note[]>([])
   // Per-card states keyed by note id
@@ -77,7 +84,53 @@ export default function InboxSection({
     return () => window.removeEventListener('zf:draft', onDraft)
   }, [])
 
+  // ── SSE listener: auto-morph DRAFT card when backend finishes processing ──
+  // EventSource se auto-reconecta. Si el server no está disponible, la promesa
+  // de open() rechaza — manejamos silenciosamente, "Procesar todo" sigue
+  // funcionando como fallback manual.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof EventSource === 'undefined') return
+
+    const es = new EventSource('/api/events')
+
+    es.addEventListener('note-processed', (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data) as SSEEvent
+        if (!data?.noteId) return
+        if (!cardsRef.current.some((c) => c.id === data.noteId)) return
+
+        // Quitar la card del UI y limpiar su estado.
+        setCards((prev) => prev.filter((c) => c.id !== data.noteId))
+        setCardStates((prev) => {
+          const next = { ...prev }
+          delete next[data.noteId]
+          return next
+        })
+
+        // Toast contextual según el outcome.
+        if (data.status === 'promoted') {
+          showToast('Nota enviada a revisión.', 'success')
+        } else if (data.status === 'already_processed') {
+          showToast('Esta nota ya estaba procesada.', 'success')
+        } else {
+          showToast(`Guardado en Hub ${data.domain}`.trim(), 'success', data.domain)
+        }
+      } catch {
+        // Payload malformado — ignorar. Próximo evento llegará igual.
+      }
+    })
+
+    es.onerror = () => {
+      // ponytail: EventSource ya reintenta solo. Solo logueamos para debug.
+      // El "Procesar todo" sigue siendo la red de seguridad.
+    }
+
+    return () => es.close()
+  }, [showToast])
+
   // ── Per-card process handler ──────────────────────────────────────────────
+  // El botón "Procesar con IA" per-card ya no existe (Task 4 del plan SSE);
+  // "Procesar todo" sigue usando este handler como red de seguridad manual.
   const processCard = useCallback(
     async (noteId: string): Promise<void> => {
       const idx = cardsRef.current.findIndex((c) => c.id === noteId)
@@ -98,15 +151,17 @@ export default function InboxSection({
         clearTimeout(timeout)
 
         if (res.status === 200) {
+          // El SSE debería auto-remover la card. Si todavía no llegó el evento,
+          // caemos al fallback optimista igual: removemos local + toast.
           const body = (await res.json()) as { note?: { domain?: string } }
           const domain = body.note?.domain ?? ''
-          showToast(`Guardado en Hub ${domain}`.trim(), 'success')
           setCards((prev) => prev.filter((c) => c.id !== noteId))
           setCardStates((prev) => {
             const next = { ...prev }
             delete next[noteId]
             return next
           })
+          if (domain) showToast(`Guardado en Hub ${domain}`.trim(), 'success', domain)
           return
         } else if (res.status === 409) {
           // Already processed by someone else — remove silently
@@ -174,7 +229,6 @@ export default function InboxSection({
               key={card.id}
               card={card}
               state={cardStates[card.id] ?? { tag: 'idle' }}
-              onProcess={() => void processCard(card.id)}
             />
           ))}
         </div>
@@ -188,10 +242,9 @@ export default function InboxSection({
 type InboxCardProps = {
   card: Note
   state: CardState
-  onProcess: () => void
 }
 
-function InboxCard({ card, state, onProcess }: InboxCardProps) {
+function InboxCard({ card, state }: InboxCardProps) {
   return (
     <div data-testid="inbox-card" data-note-id={card.id} className="border border-graphite-border bg-graphite-card px-4 py-3">
       <p className="text-sm text-[#E3E2E2] truncate">{card.title}</p>
@@ -199,18 +252,9 @@ function InboxCard({ card, state, onProcess }: InboxCardProps) {
         <p className="mt-0.5 text-xs text-[#5A5A5A] truncate">{card.content.slice(0, 80)}</p>
       )}
 
-      {/* Action area */}
+      {/* Action area — solo estados transitorios. El estado idle no tiene
+          botón per-card: el SSE auto-morpha la card cuando termina el proceso. */}
       <div className="mt-2 flex items-center gap-2">
-        {state.tag === 'idle' && (
-          <button
-            data-testid="process-button"
-            onClick={onProcess}
-            className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-[#A68966]/40 text-[#A68966] hover:border-[#A68966] hover:text-[#E3E2E2] transition-colors"
-          >
-            Procesar con IA
-          </button>
-        )}
-
         {state.tag === 'processing' && (
           <span className="text-[10px] uppercase tracking-wider text-[#5A5A5A] flex items-center gap-1.5">
             <svg
@@ -229,12 +273,6 @@ function InboxCard({ card, state, onProcess }: InboxCardProps) {
         {state.tag === 'error' && (
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-red-400">{state.message}</span>
-            <button
-              onClick={onProcess}
-              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-red-500/40 text-red-400 hover:border-red-400 hover:text-red-300 transition-colors"
-            >
-              Reintentar
-            </button>
           </div>
         )}
       </div>
