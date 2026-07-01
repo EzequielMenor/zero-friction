@@ -105,21 +105,26 @@ export const USER_PROMPT = (rawText: string): string =>
  *
  * @param rawText - The raw text (or transcribed audio) to parse
  * @param userId  - Authenticated user ID, used to resolve per-user LLM config
+ * @param signal  - Optional AbortSignal for timeout/cancellation (e.g. 15s limit)
  */
 export async function runCaptureChatCompletion(
   rawText: string,
-  userId: string
+  userId: string,
+  signal?: AbortSignal
 ): Promise<ParsedCapture> {
   const { client, model } = await getLlmForUser(userId)
-  const completion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: USER_PROMPT(rawText) },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.1,
-  })
+  const completion = await client.chat.completions.create(
+    {
+      model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: USER_PROMPT(rawText) },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.1,
+    },
+    { signal }
+  )
 
   const content = completion.choices[0]?.message?.content
   if (!content) {
@@ -214,6 +219,70 @@ export async function findSimilarNotes(
     LIMIT 3
   `
   return similar
+}
+
+// ─── DRAFT Enrichment (UPDATE path) ───────────────────────────────────────────
+
+/**
+ * CAS-gated update of a DRAFT note to ACTIVE.
+ * Used by POST /api/notes/[id]/process.
+ *
+ * Race: two concurrent requests. First wins CAS (DRAFT→ACTIVE), second sees
+ * count=0 and returns null. Embedding write is gated by the same CAS guard
+ * via the raw SQL WHERE status='ACTIVE' condition.
+ *
+ * @param noteId  - DRAFT note ID
+ * @param userId  - Authenticated user ID
+ * @param parsed  - AI-parsed capture result
+ * @returns Updated Note or null when CAS fails (already processed)
+ */
+export async function enrichDraftNote(
+  noteId: string,
+  userId: string,
+  parsed: ParsedCapture
+): Promise<import('@prisma/client').Note | null> {
+  // 1. Generate embedding first (before CAS so we only compute if we'll use it)
+  const embedding = await createEmbedding(parsed.cleanedContent, userId)
+
+  // 2. CAS-gated update: only succeeds if note is still DRAFT
+  const result = await prisma.note.updateMany({
+    where: {
+      id: noteId,
+      userId,
+      status: 'DRAFT',
+    },
+    data: {
+      status: 'ACTIVE',
+      domain: parsed.domain,
+      title: parsed.cleanedTitle,
+      content: parsed.cleanedContent,
+      tags: parsed.tags,
+      suggestedGoals: parsed.suggestedGoals ?? [],
+      dueDate: parsed.metadata.dueDate ? new Date(parsed.metadata.dueDate) : null,
+      isImportant: parsed.metadata.isImportant,
+    },
+  })
+
+  // CAS failed — note is no longer DRAFT (already processed)
+  if (result.count === 0) {
+    return null
+  }
+
+  // 3. Embedding write — guarded by status='ACTIVE' to survive lost races
+  await prisma.$executeRaw`
+    UPDATE "Note"
+    SET embedding = ${embedding}::vector
+    WHERE id = ${noteId} AND status = 'ACTIVE'
+  `
+
+  // 4. Similarity + relationships
+  const similar = await findSimilarNotes(userId, noteId, embedding)
+  if (similar.length > 0) {
+    await createRelationships(userId, noteId, similar)
+  }
+
+  // 5. Return the updated note
+  return prisma.note.findUnique({ where: { id: noteId } })
 }
 
 // ─── Relationships ─────────────────────────────────────────────────────────────
