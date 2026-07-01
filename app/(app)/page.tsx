@@ -90,13 +90,13 @@ function getTodayYYYYMMDD(): string {
 function Skeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="h-4 w-12 bg-graphite-border rounded" />
-      <div className="h-8 w-64 bg-graphite-border rounded" />
-      <div className="h-3 w-48 bg-graphite-border rounded" />
-      <div className="mt-10 h-32 border border-graphite-border rounded-none bg-graphite-card" />
+      <div className="h-4 w-12 bg-border rounded" />
+      <div className="h-8 w-64 bg-border rounded" />
+      <div className="h-3 w-48 bg-border rounded" />
+      <div className="mt-10 h-32 border border-border rounded-none bg-surface" />
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-12 border border-graphite-border rounded-none bg-graphite-card" />
+          <div key={i} className="h-12 border border-border rounded-none bg-surface" />
         ))}
       </div>
     </div>
@@ -109,7 +109,7 @@ function CheckIcon({ checked, onChange }: { checked: boolean; onChange: () => vo
   return (
     <button
       onClick={onChange}
-      className="flex-shrink-0 w-5 h-5 border rounded-none focus:outline-none focus:ring-1 focus:ring-[#A68966] transition-all duration-150"
+      className="flex-shrink-0 w-5 h-5 border rounded-none focus:outline-none focus:ring-1 focus:ring-accent transition-all duration-150"
       style={{
         borderColor: '#A68966',
         backgroundColor: checked ? '#A68966' : 'transparent',
@@ -174,7 +174,7 @@ function ReflectionForm({
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="text-[10px] uppercase tracking-wider text-[#5A5A5A] hover:text-[#A68966] transition-colors"
+          className="text-[10px] uppercase tracking-wider text-fg-faint hover:text-accent transition-colors"
         >
           Añadir reflexión
         </button>
@@ -183,20 +183,20 @@ function ReflectionForm({
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-xs px-3 py-2 resize-none focus:outline-none focus:border-[#A68966]/40"
+            className="w-full bg-surface border border-border text-fg text-xs px-3 py-2 resize-none focus:outline-none focus:border-accent/40"
             rows={3}
             placeholder="Tu reflexión..."
           />
           <div className="flex gap-2">
             <button
               onClick={handleSubmit}
-              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
             >
               Añadir
             </button>
             <button
               onClick={() => { setOpen(false); setText('') }}
-              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#5A5A5A] hover:text-[#7A7A7A] transition-colors"
+              className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-border text-fg-faint hover:text-fg-subtle transition-colors"
             >
               Cancelar
             </button>
@@ -481,20 +481,20 @@ export default function Dashboard() {
     <>
       {/* Header */}
       <div className="mb-2">
-        <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase font-semibold">HOY</p>
-        <h1 className="font-serif text-4xl text-[#E3E2E2] mt-1">
+        <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold">HOY</p>
+        <h1 className="font-serif text-4xl text-fg mt-1">
           {greeting}, {displayName}.
         </h1>
-        <p className="text-sm text-[#5A5A5A] mt-0.5">{dateStr}</p>
+        <p className="text-sm text-fg-faint mt-0.5">{dateStr}</p>
       </div>
 
       {/* Error state */}
       {error && (
-        <div className="mt-6 border border-graphite-border bg-graphite-card px-4 py-3 flex items-center justify-between">
-          <p className="text-sm text-[#E3E2E2]">{error}</p>
+        <div className="mt-6 border border-border bg-surface px-4 py-3 flex items-center justify-between">
+          <p className="text-sm text-fg">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="text-[10px] tracking-widest text-[#A68966] uppercase hover:underline"
+            className="text-[10px] tracking-widest text-accent uppercase hover:underline"
           >
             Reintentar
           </button>
@@ -503,23 +503,23 @@ export default function Dashboard() {
 
       {/* Focus Widget */}
       <div className="mt-8">
-        <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-3">ENFOQUE</p>
+        <p className="text-[10px] tracking-[0.2em] text-accent uppercase mb-3">ENFOQUE</p>
         <div
-          className="border border-graphite-border border-t border-t-[#A68966]/40 bg-gradient-to-b from-graphite-card to-graphite min-h-[120px] px-6 py-5 relative"
+          className="border border-border border-t border-t-accent/40 bg-gradient-to-b from-surface to-bg min-h-[120px] px-6 py-5 relative"
           style={!focusTask ? { animation: 'pulse-border 2s ease-in-out infinite' } : undefined}
         >
           {focusTask ? (
             <>
-              <h2 className="font-serif text-2xl text-[#E3E2E2] leading-snug">{focusTask.title}</h2>
+              <h2 className="font-serif text-2xl text-fg leading-snug">{focusTask.title}</h2>
               <button
                 onClick={handleReleaseFocus}
-                className="mt-3 text-[11px] text-[#A68966] hover:underline"
+                className="mt-3 text-[11px] text-accent hover:underline"
               >
                 Quitar enfoque
               </button>
             </>
           ) : (
-            <p className="text-[#5A5A5A] text-sm italic leading-relaxed">
+            <p className="text-fg-faint text-sm italic leading-relaxed">
               Sin enfoque activo. Marcá una tarea para entrar en deep work.
             </p>
           )}
@@ -531,10 +531,10 @@ export default function Dashboard() {
 
       {/* Today's Tasks */}
       <div className="mt-10">
-        <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-4">TAREAS DE HOY</p>
+        <p className="text-[10px] tracking-[0.2em] text-accent uppercase mb-4">TAREAS DE HOY</p>
 
         {todayTasks.length === 0 ? (
-          <p className="text-[#5A5A5A] text-sm">Nada pendiente. Capturá algo con ⌘K.</p>
+          <p className="text-fg-faint text-sm">Nada pendiente. Capturá algo con ⌘K.</p>
         ) : (
           <div className="space-y-2">
             {todayTasks
@@ -546,7 +546,7 @@ export default function Dashboard() {
               return (
                 <div
                   key={task.id}
-                  className={`flex items-start gap-3 border border-graphite-border bg-graphite-card px-4 py-3 group transition-opacity duration-200 ${isDone ? 'opacity-30' : 'opacity-100'}`}
+                  className={`flex items-start gap-3 border border-border bg-surface px-4 py-3 group transition-opacity duration-200 ${isDone ? 'opacity-30' : 'opacity-100'}`}
                 >
                   {/* Checkbox */}
                   {!isPending && (
@@ -554,19 +554,19 @@ export default function Dashboard() {
                   )}
                   {isPending && (
                     <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#A68966] animate-pulse-dot" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-dot" />
                     </div>
                   )}
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <p
-                      className={`text-sm leading-snug transition-all duration-150 ${isDone ? 'line-through text-[#5A5A5A]' : 'text-[#E3E2E2]'}`}
+                      className={`text-sm leading-snug transition-all duration-150 ${isDone ? 'line-through text-fg-faint' : 'text-fg'}`}
                     >
                       {task.title}
                     </p>
                     {isPending && (
-                      <p className="text-[10px] text-[#5A5A5A] mt-0.5">Procesando...</p>
+                      <p className="text-[10px] text-fg-faint mt-0.5">Procesando...</p>
                     )}
                   </div>
 
@@ -596,7 +596,7 @@ export default function Dashboard() {
       {/* Maintenance Console */}
       {maintenanceTasks.length > 0 && (
         <div className="mt-12">
-          <p className="text-[10px] tracking-[0.2em] text-[#5A5A5A] uppercase font-normal mb-3">
+          <p className="text-[10px] tracking-[0.2em] text-fg-faint uppercase font-normal mb-3">
             Consola de Mantenimiento
           </p>
           <div className="space-y-2">
@@ -605,17 +605,17 @@ export default function Dashboard() {
               return (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 border border-graphite-border bg-graphite-card px-3 py-2"
+                  className="flex items-center gap-3 border border-border bg-surface px-3 py-2"
                 >
                   <CheckIcon checked={false} onChange={() => handleMaintCheck(task)} />
-                  <span className="flex-1 min-w-0 truncate text-[12px] text-[#7A7A7A] italic">
+                  <span className="flex-1 min-w-0 truncate text-[12px] text-fg-subtle italic">
                     {task.title}
                   </span>
                   <span
                     className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 border ${
                       isUndated
-                        ? 'border-graphite-border text-[#5A5A5A]'
-                        : 'border-[#A68966]/30 text-[#A68966]/70'
+                        ? 'border-border text-fg-faint'
+                        : 'border-accent/30 text-accent/70'
                     }`}
                   >
                     {isUndated ? 'Sin fecha' : 'Atrasada'}
@@ -623,25 +623,25 @@ export default function Dashboard() {
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button
                       onClick={() => handleMaintHoy(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
                     >
                       Hoy
                     </button>
                     <button
                       onClick={() => handleMaintManana(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
                     >
                       Mañana
                     </button>
                     <button
                       onClick={() => handleMaintBacklog(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
                     >
                       Al Backlog
                     </button>
                     <button
                       onClick={() => handleMaintDejarAqui(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
                     >
                       Dejar aquí
                     </button>
@@ -656,7 +656,7 @@ export default function Dashboard() {
       {/* Habits Widget */}
       {habits.length > 0 && (
         <div className="mt-12">
-          <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-4">HÁBITOS DE HOY</p>
+          <p className="text-[10px] tracking-[0.2em] text-accent uppercase mb-4">HÁBITOS DE HOY</p>
           <div className="flex flex-wrap gap-3">
             {habits.map((habit) => {
               const words = habit.name.trim().split(/\s+/)
@@ -671,8 +671,8 @@ export default function Dashboard() {
                   className={[
                     'w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-150',
                     habit.completedToday
-                      ? 'bg-[#A68966] border border-[#A68966] text-black'
-                      : 'bg-graphite-card border border-[#2A2A2D] text-[#A1A1AA] hover:border-[#A68966]/40 hover:text-[#E3E2E2]',
+                      ? 'bg-accent border border-accent text-black'
+                      : 'bg-surface border border-border-subtle text-fg-muted hover:border-accent/40 hover:text-fg',
                   ].join(' ')}
                   aria-label={habit.completedToday ? `Desmarcar ${habit.name}` : `Completar ${habit.name}`}
                 >
@@ -687,23 +687,23 @@ export default function Dashboard() {
       {/* Subscription Prompt */}
       {dueSubscription && (
         <div className="mt-12">
-          <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-3">
+          <p className="text-[10px] tracking-[0.2em] text-accent uppercase mb-3">
             SUBSCRIPCIÓN DE HOY
           </p>
-          <div className="border border-graphite-border bg-graphite-card px-4 py-3 flex items-center justify-between">
-            <p className="text-sm text-[#E3E2E2]">
+          <div className="border border-border bg-surface px-4 py-3 flex items-center justify-between">
+            <p className="text-sm text-fg">
               ¿Te han cobrado hoy {dueSubscription.name} ({dueSubscription.amount}€)?
             </p>
             <div className="flex items-center gap-2 ml-4 flex-shrink-0">
               <button
                 onClick={() => handleSubscriptionConfirm(dueSubscription.id, true)}
-                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
               >
                 Sí
               </button>
               <button
                 onClick={() => handleSubscriptionConfirm(dueSubscription.id, false)}
-                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
               >
                 No
               </button>
@@ -715,11 +715,11 @@ export default function Dashboard() {
       {/* Resurgence Card */}
       {resurgenceNote && (
         <div className="mt-12">
-          <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase mb-3">DEL PASADO</p>
-          <div className="border border-graphite-border bg-graphite-card px-4 py-4 relative">
+          <p className="text-[10px] tracking-[0.2em] text-accent uppercase mb-3">DEL PASADO</p>
+          <div className="border border-border bg-surface px-4 py-4 relative">
             <button
               onClick={handleResurgenceRefresh}
-              className="absolute top-3 right-3 text-[#5A5A5A] hover:text-[#A68966] transition-colors"
+              className="absolute top-3 right-3 text-fg-faint hover:text-accent transition-colors"
               aria-label="Refrescar nota"
             >
               <svg viewBox="0 0 16 16" className="w-4 h-4">
@@ -733,8 +733,8 @@ export default function Dashboard() {
                 />
               </svg>
             </button>
-            <h3 className="font-serif text-lg text-[#E3E2E2]">{resurgenceNote.title}</h3>
-            <p className="text-xs text-[#5A5A5A] mt-1 mb-3">
+            <h3 className="font-serif text-lg text-fg">{resurgenceNote.title}</h3>
+            <p className="text-xs text-fg-faint mt-1 mb-3">
               {resurgenceNote.content.replace(/\n/g, ' ').slice(0, 200)}
               {resurgenceNote.content.length > 200 ? '…' : ''}
             </p>
