@@ -1,30 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifySession, AUTH_COOKIE } from '@/lib/auth'
-import { getLlmForUser, getWhisperForUser } from '@/lib/llm'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type RecordType = 'gimnasio' | 'finanzas' | 'habito' | null
-
-interface ParsedCapture {
-  domain: 'ESPIRITUAL' | 'PERSONAL' | 'APRENDIZAJE' | 'PROYECTOS' | 'REGISTROS'
-  cleanedTitle: string
-  cleanedContent: string
-  tags: string[]
-  suggestedGoals?: string[]
-  metadata: {
-    dueDate: string | null
-    isImportant: boolean
-    recordType: RecordType
-    recordData: {
-      value: number | null
-      name: string | null
-      unit: string | null
-      category: string | null
-    }
-  }
-}
+import { getWhisperForUser } from '@/lib/llm'
+import type { ParsedCapture } from '@/lib/parse-capture'
+import {
+  runCaptureChatCompletion,
+  createNoteWithRelations,
+} from '@/lib/parse-capture'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -50,125 +32,9 @@ async function transcribeAudio(file: File, userId: string): Promise<string> {
   return transcription.text.trim()
 }
 
-// ─── Chat Completion Parser ───────────────────────────────────────────────────
-
-const RESPONSE_SCHEMA = {
-  type: 'object',
-  required: ['domain', 'cleanedTitle', 'cleanedContent', 'tags', 'metadata'],
-  properties: {
-    domain: {
-      enum: ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS'],
-    },
-    cleanedTitle: { type: 'string' },
-    cleanedContent: { type: 'string' },
-    tags: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 4 },
-    suggestedGoals: {
-      type: 'array',
-      items: { type: 'string' },
-      minItems: 1,
-      maxItems: 2,
-    },
-    metadata: {
-      type: 'object',
-      properties: {
-        dueDate: { type: ['string', 'null'] },
-        isImportant: { type: 'boolean' },
-        recordType: { type: ['string', 'null'] },
-        recordData: {
-          type: 'object',
-          properties: {
-            value: { type: ['number', 'null'] },
-            name: { type: ['string', 'null'] },
-            unit: { type: ['string', 'null'] },
-            category: { type: ['string', 'null'] },
-          },
-        },
-      },
-    },
-  },
-}
-
-const SYSTEM_PROMPT =
-  'You are a note processing assistant. ' +
-  '1. Clean the text (correct transcription errors, strip control metadata like dates, "!", or commands). ' +
-  '2. Classify it into one of 5 domains: ESPIRITUAL, PERSONAL, APRENDIZAJE, PROYECTOS, REGISTROS. ' +
-  '3. Extract metadata: dueDate (ISO string YYYY-MM-DD, or null), isImportant (boolean). ' +
-  '4. If domain is REGISTROS, classify as: gimnasio, finanzas, or habito. ' +
-  '5. If REGISTROS+finanzas, extract: value (number), name/description, category (or GASTOS_FIJOS). ' +
-  '6. If REGISTROS+habito, extract: name, category (e.g. "salud", "productividad"). ' +
-  '7. If REGISTROS+gimnasio, extract: exercise name, weight, reps, sets, or mark as needs_review. ' +
-  '8. Extract 2-4 thematic tags (e.g. ["Paciencia", "Gálatas"] or ["NextJS", "Prisma"]) — these are short topic/theme labels, NOT sentences. ' +
-  '9. If domain is ESPIRITUAL, also extract 1-2 concrete actionable personal-application goals based on the study content (e.g. ["Aplicar Gálatas 5:22-23 en mis relaciones esta semana"]). ' +
-  '10. Return ONLY valid JSON matching the schema: ' +
-  JSON.stringify(RESPONSE_SCHEMA) +
-  '. Do not add any text before or after the JSON.'
-
-const USER_PROMPT = (rawText: string) =>
-  `Process this note:\n\n${rawText}`
-
-async function parseCapture(rawText: string, userId: string): Promise<ParsedCapture> {
-  const { client, model } = await getLlmForUser(userId)
-  const completion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: USER_PROMPT(rawText) },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.1,
-  })
-
-  const content = completion.choices[0]?.message?.content
-  if (!content) {
-    throw new Error('No response from Chat Completion')
-  }
-
-  return JSON.parse(content) as ParsedCapture
-}
-
-// ─── Embeddings ────────────────────────────────────────────────────────────────
-
-async function createEmbedding(text: string, userId: string): Promise<number[]> {
-  const { client, embeddingModel } = await getLlmForUser(userId)
-  const response = await client.embeddings.create({
-    model: embeddingModel,
-    input: text,
-  })
-  return response.data[0].embedding
-}
-
-// ─── Persistence ─────────────────────────────────────────────────────────────
-
-async function saveNote(
-  userId: string,
-  parsed: ParsedCapture
-): Promise<{ id: string; embedding: number[] }> {
-  const note = await prisma.note.create({
-    data: {
-      userId,
-      title: parsed.cleanedTitle,
-      content: parsed.cleanedContent,
-      domain: parsed.domain,
-      dueDate: parsed.metadata.dueDate
-        ? new Date(parsed.metadata.dueDate)
-        : null,
-      isImportant: parsed.metadata.isImportant,
-      tags: parsed.tags ?? [],
-      suggestedGoals: parsed.suggestedGoals ?? [],
-    },
-  })
-
-  const embedding = await createEmbedding(parsed.cleanedContent, userId)
-
-  // Save embedding via raw SQL (Prisma doesn't support vector type)
-  await prisma.$executeRaw`
-    UPDATE "Note"
-    SET embedding = ${embedding}::vector
-    WHERE id = ${note.id}
-  `
-
-  return { id: note.id, embedding }
-}
+// ─── REGISTROS Branch Helpers ─────────────────────────────────────────────────
+// These handle REGISTROS-specific record types and stay inline per the design
+// (RecordType branching deferred to a follow-up; design decision D8).
 
 async function saveTransaction(
   userId: string,
@@ -193,7 +59,6 @@ async function saveHabitLog(
 ): Promise<{ id: string }> {
   const habitName = parsed.metadata.recordData.name ?? parsed.cleanedTitle
 
-  // Find or create the habit
   let habit = await prisma.habit.findFirst({
     where: { userId, name: { equals: habitName } },
   })
@@ -223,7 +88,6 @@ async function saveWorkoutDraft(
   userId: string,
   parsed: ParsedCapture
 ): Promise<{ id: string }> {
-  // Create a Note with DRAFT status for gym workouts that need verification
   const note = await prisma.note.create({
     data: {
       userId,
@@ -235,47 +99,6 @@ async function saveWorkoutDraft(
     },
   })
   return { id: note.id }
-}
-
-// ─── Similarity Search & Relationships ────────────────────────────────────────
-
-async function findSimilarNotes(
-  userId: string,
-  noteId: string,
-  embedding: number[]
-): Promise<Array<{ id: string; similarity: number }>> {
-  const similar = await prisma.$queryRaw<Array<{ id: string; similarity: number }>>`
-    SELECT id, 1 - (embedding <=> ${embedding}::vector) as similarity
-    FROM "Note"
-    WHERE "userId" = ${userId} AND id != ${noteId}
-    ORDER BY embedding <=> ${embedding}::vector
-    LIMIT 3
-  `
-  return similar
-}
-
-async function createRelationships(
-  userId: string,
-  sourceNoteId: string,
-  similarNotes: Array<{ id: string; similarity: number }>
-): Promise<void> {
-  await prisma.$transaction(
-    similarNotes.map(({ id: targetNoteId, similarity }) =>
-      prisma.noteRelationship.upsert({
-        where: {
-          sourceNoteId_targetNoteId: { sourceNoteId, targetNoteId },
-        },
-        update: { similarity },
-        create: {
-          userId,
-          sourceNoteId,
-          targetNoteId,
-          similarity,
-          isManual: false,
-        },
-      })
-    )
-  )
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
@@ -334,7 +157,7 @@ export async function POST(req: NextRequest) {
   // 3. Parse via Chat Completion
   let parsed: ParsedCapture
   try {
-    parsed = await parseCapture(rawText, userId)
+    parsed = await runCaptureChatCompletion(rawText, userId)
   } catch (err) {
     console.error('Chat Completion error:', err)
     return NextResponse.json(
@@ -343,7 +166,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // 4. Persist based on domain
+  // 4. Persist based on domain / recordType
   let entity: { id: string; embedding?: number[] } | null = null
 
   if (parsed.domain === 'REGISTROS') {
@@ -357,27 +180,14 @@ export async function POST(req: NextRequest) {
       entity = await saveWorkoutDraft(userId, parsed)
     } else {
       // recordType is null or unrecognized — store as Note
-      entity = await saveNote(userId, parsed)
+      entity = await createNoteWithRelations(userId, parsed)
     }
   } else {
     // ESPIRITUAL, PERSONAL, APRENDIZAJE, PROYECTOS → Note
-    entity = await saveNote(userId, parsed)
+    entity = await createNoteWithRelations(userId, parsed)
   }
 
-  // 5. Embedding + Relationships (only for Notes)
-  if ('embedding' in entity && entity.embedding) {
-    const similarNotes = await findSimilarNotes(
-      userId,
-      entity.id,
-      entity.embedding
-    )
-
-    if (similarNotes.length > 0) {
-      await createRelationships(userId, entity.id, similarNotes)
-    }
-  }
-
-  // 6. Return response
+  // 5. Return response
   return NextResponse.json({
     id: entity.id,
     domain: parsed.domain,
