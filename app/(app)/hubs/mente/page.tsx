@@ -7,6 +7,8 @@ import {
   forceManyBody,
   forceCenter,
   forceCollide,
+  forceX,
+  forceY,
   type SimulationNodeDatum,
   type SimulationLinkDatum,
 } from 'd3-force'
@@ -121,8 +123,19 @@ function GraphCanvas({ nodes, links, onNodeClick }: GraphCanvasProps) {
   const resize = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    canvas.width = canvas.offsetWidth
-    canvas.height = canvas.offsetHeight
+    const w = canvas.offsetWidth
+    const h = canvas.offsetHeight
+    canvas.width = w
+    canvas.height = h
+
+    // Update D3 center force dynamically on resize
+    if (simulationRef.current) {
+      const centerForce = simulationRef.current.force('center') as any
+      if (centerForce) {
+        centerForce.x(w / 2).y(h / 2)
+      }
+      simulationRef.current.alpha(0.3).restart()
+    }
   }, [])
 
   useEffect(() => {
@@ -135,8 +148,10 @@ function GraphCanvas({ nodes, links, onNodeClick }: GraphCanvasProps) {
 
     const simulation = forceSimulation<GraphNode, GraphLink>(nodes)
       .force('link', forceLink<GraphNode, GraphLink>(links).id((d) => d.id).distance(120))
-      .force('charge', forceManyBody().strength(-400))
+      .force('charge', forceManyBody().strength(-300))
       .force('center', forceCenter(width / 2, height / 2))
+      .force('x', forceX(width / 2).strength(0.08))
+      .force('y', forceY(height / 2).strength(0.08))
       .force('collide', forceCollide(30))
       .on('tick', draw)
 
@@ -322,21 +337,22 @@ export default function MentePage() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [noteDetail, setNoteDetail] = useState<NoteItem | null>(null)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/graph')
-        if (!res.ok) throw new Error('Failed to load')
-        const json = await res.json()
-        setGraphData(json)
-      } catch {
-        setError('No se pudo cargar el grafo.')
-      } finally {
-        setLoading(false)
-      }
+  const loadGraph = useCallback(async () => {
+    try {
+      const res = await fetch('/api/graph')
+      if (!res.ok) throw new Error('Failed to load')
+      const json = await res.json()
+      setGraphData(json)
+    } catch {
+      setError('No se pudo cargar el grafo.')
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => {
+    loadGraph()
+  }, [loadGraph])
 
   // When a node is clicked, fetch full note details
   const handleNodeClick = useCallback(async (id: string) => {
@@ -425,9 +441,19 @@ export default function MentePage() {
         onNodeClick={handleNodeClick}
       />
 
-      {/* Note detail panel */}
       {noteDetail && (
-        <NotePanel note={noteDetail} onClose={handleClosePanel} />
+        <NotePanel
+          note={noteDetail}
+          onClose={handleClosePanel}
+          onUpdate={(updated) => {
+            setNoteDetail(updated)
+            loadGraph()
+          }}
+          onDelete={() => {
+            setNoteDetail(null)
+            loadGraph()
+          }}
+        />
       )}
     </div>
   )

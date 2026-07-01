@@ -39,6 +39,7 @@ interface NotePanelProps {
   onClose: () => void
   onUpdate?: (saved: NoteItem) => void
   onCreated?: (saved: NoteItem) => void
+  onDelete?: (id: string) => void
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -124,6 +125,7 @@ export function NotePanel({
   onClose,
   onUpdate,
   onCreated,
+  onDelete,
 }: NotePanelProps) {
   const isCreateMode = !note && !!draft
 
@@ -135,6 +137,30 @@ export function NotePanel({
   const [isEditing, setIsEditing] = useState(isCreateMode)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  async function handleDelete() {
+    if (!note) return
+    if (!window.confirm('¿Estás seguro de que querés eliminar esta nota? Esta acción no se puede deshacer.')) return
+
+    setSaving(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Error al eliminar la nota')
+      }
+      onDelete?.(note.id)
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al eliminar')
+      setSaving(false)
+    }
+  }
 
   const meta = domainMeta(domain)
 
@@ -251,21 +277,23 @@ export function NotePanel({
                       <option value="PROYECTOS">Proyectos</option>
                     </select>
                   </div>
-                  <div className="mt-2">
-                    <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
-                      Estado
-                    </label>
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as NoteStatus)}
-                      className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
-                    >
-                      <option value="ACTIVE">Activa</option>
-                      <option value="IN_PROGRESS">En curso</option>
-                      <option value="DONE">Hecha</option>
-                      <option value="NEEDS_REVIEW">Revisión</option>
-                    </select>
-                  </div>
+                  {(domain === 'PROYECTOS' || domain === 'PERSONAL') && (
+                    <div className="mt-2">
+                      <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                        Estado
+                      </label>
+                      <select
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value as NoteStatus)}
+                        className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                      >
+                        <option value="ACTIVE">Activa</option>
+                        <option value="IN_PROGRESS">En curso</option>
+                        <option value="DONE">Hecha</option>
+                        <option value="NEEDS_REVIEW">Revisión</option>
+                      </select>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -293,21 +321,32 @@ export function NotePanel({
 
           {/* Edit-mode actions at top */}
           {isEditing && (
-            <div className="flex items-center gap-2 mb-4">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 border border-[#A68966]/60 text-[#A68966] text-xs uppercase tracking-wider py-2 hover:bg-[#A68966]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Guardando…' : 'Guardar'}
-              </button>
-              <button
-                onClick={handleCancel}
-                disabled={saving}
-                className="flex-1 border border-graphite-border text-[#A1A1AA] text-xs uppercase tracking-wider py-2 hover:border-[#A68966]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancelar
-              </button>
+            <div className="flex flex-col gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 border border-[#A68966]/60 text-[#A68966] text-xs uppercase tracking-wider py-2 hover:bg-[#A68966]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                >
+                  {saving ? 'Guardando…' : 'Guardar'}
+                </button>
+                <button
+                  onClick={handleCancel}
+                  disabled={saving}
+                  className="flex-1 border border-graphite-border text-[#A1A1AA] text-xs uppercase tracking-wider py-2 hover:border-[#A68966]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancelar
+                </button>
+              </div>
+              {!isCreateMode && (
+                <button
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="w-full border border-red-500/40 text-red-400 text-xs uppercase tracking-wider py-2 hover:border-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                >
+                  Eliminar Nota
+                </button>
+              )}
             </div>
           )}
 

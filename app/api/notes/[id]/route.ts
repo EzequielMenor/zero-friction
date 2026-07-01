@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import { NoteStatus } from '@prisma/client'
+import { Domain, NoteStatus } from '@prisma/client'
 
 const NOTE_SELECT = {
   id: true,
@@ -19,6 +19,7 @@ const NOTE_SELECT = {
 } as const
 
 const VALID_STATUSES: NoteStatus[] = ['DRAFT', 'NEEDS_REVIEW', 'ACTIVE', 'IN_PROGRESS', 'DONE']
+const VALID_DOMAINS: Domain[] = ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS']
 
 export async function GET(
   _req: NextRequest,
@@ -106,6 +107,17 @@ export async function PATCH(
     filteredUpdate.content = String(body.content)
   }
 
+  if (body.domain !== undefined) {
+    const domain = body.domain as string
+    if (!VALID_DOMAINS.includes(domain as Domain)) {
+      return NextResponse.json(
+        { error: 'invalid domain' },
+        { status: 400 }
+      )
+    }
+    filteredUpdate.domain = domain
+  }
+
   // If setting to IN_PROGRESS, demote any other IN_PROGRESS note for this user first
   // ponytail: the transaction's result is discarded because we re-read with findUnique
   // to return the canonical shape. Saves duplicating the select.
@@ -143,3 +155,32 @@ export async function PATCH(
 
   return NextResponse.json(updated)
 }
+
+export async function DELETE(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> }
+) {
+  const token = (await cookies()).get(AUTH_COOKIE)?.value
+  if (!token) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  }
+
+  const session = await verifySession(token)
+  if (!session) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  }
+
+  const { id } = await ctx.params
+
+  // Ownership check
+  const existing = await prisma.note.findFirst({
+    where: { id, userId: session.userId },
+  })
+  if (!existing) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 })
+  }
+
+  await prisma.note.delete({ where: { id } })
+  return NextResponse.json({ ok: true })
+}
+
