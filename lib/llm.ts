@@ -1,40 +1,42 @@
-// LLM clients configured from env — supports any OpenAI-compatible provider
-// (OpenAI, DeepSeek, OpenRouter, Groq, …) via LLM_BASE_URL + LLM_API_KEY.
-//
-// ponytail: lazy singletons, not eager construction. The OpenAI SDK throws at
-// construction time when no API key is present, and `next build` evaluates route
-// modules to collect page data — constructing eagerly would break the build when
-// the key isn't set yet. Clients are created on first request use instead.
-// No factory, no provider abstraction: one llm + one whisper, that's it.
+// LLM clients scoped per-user with DB config + env fallback.
+// No eager construction — OpenAI SDK throws when API key is absent at
+// module evaluation time (breaks `next build` with missing env vars).
+// Clients are created inside async functions so the key can be absent
+// until first use.
 
 import OpenAI from 'openai'
+import { prisma } from '@/lib/prisma'
 
-let _llm: OpenAI | null = null
-let _whisper: OpenAI | null = null
+const DEFAULT_LLM_MODEL = 'gpt-4o-mini'
+const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small'
+const DEFAULT_WHISPER_MODEL = 'whisper-1'
 
-export function getLlm(): OpenAI {
-  if (!_llm) {
-    _llm = new OpenAI({
-      apiKey: process.env.LLM_API_KEY,
-      baseURL: process.env.LLM_BASE_URL,
-    })
+export async function getLlmForUser(userId: string): Promise<{
+  client: OpenAI
+  model: string
+  embeddingModel: string
+}> {
+  const cfg = await prisma.lLMConfig.findUnique({ where: { userId } })
+  const apiKey = cfg?.llmApiKey || process.env.LLM_API_KEY
+  const baseURL = cfg?.llmBaseUrl || process.env.LLM_BASE_URL
+  return {
+    client: new OpenAI({ apiKey, baseURL }),
+    model: cfg?.llmModel || process.env.LLM_MODEL || DEFAULT_LLM_MODEL,
+    embeddingModel:
+      cfg?.embeddingModel || process.env.EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL,
   }
-  return _llm
 }
 
-// Whisper needs an OpenAI-compatible /audio/transcriptions endpoint. Most alt
-// providers don't serve audio, so this falls back to OpenAI's endpoint unless
-// WHISPER_BASE_URL is set.
-export function getWhisper(): OpenAI {
-  if (!_whisper) {
-    _whisper = new OpenAI({
-      apiKey: process.env.WHISPER_API_KEY || process.env.LLM_API_KEY,
-      baseURL: process.env.WHISPER_BASE_URL ?? 'https://api.openai.com/v1',
-    })
+export async function getWhisperForUser(userId: string): Promise<{
+  client: OpenAI
+  model: string
+}> {
+  const cfg = await prisma.lLMConfig.findUnique({ where: { userId } })
+  const apiKey = cfg?.llmApiKey || process.env.WHISPER_API_KEY || process.env.LLM_API_KEY
+  const baseURL =
+    cfg?.llmBaseUrl || process.env.WHISPER_BASE_URL || 'https://api.openai.com/v1'
+  return {
+    client: new OpenAI({ apiKey, baseURL }),
+    model: process.env.WHISPER_MODEL || DEFAULT_WHISPER_MODEL,
   }
-  return _whisper
 }
-
-export const LLM_MODEL = process.env.LLM_MODEL ?? 'gpt-4o-mini'
-export const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL ?? 'text-embedding-3-small'
-export const WHISPER_MODEL = process.env.WHISPER_MODEL ?? 'whisper-1'

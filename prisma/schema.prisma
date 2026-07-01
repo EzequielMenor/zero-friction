@@ -36,6 +36,7 @@ model User {
   subscriptions Subscription[]
   habits        Habit[]
   coachAdvice   CoachAdvice?
+  llmConfig     LLMConfig?
 }
 
 model Note {
@@ -166,4 +167,16 @@ model HabitLog {
   updatedAt DateTime @updatedAt
 
   @@unique([habitId, date])
+}
+
+model LLMConfig {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  llmBaseUrl     String?
+  llmApiKey      String?
+  llmModel       String?
+  embeddingModel String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

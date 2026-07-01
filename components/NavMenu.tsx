@@ -3,7 +3,8 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { HUBS } from '@/lib/hubs'
-import { HubIcon } from '@/components/icons'
+import { HubIcon, SettingsIcon } from '@/components/icons'
+import type { ReactNode } from 'react'
 
 function NavItem({
   href,
@@ -11,12 +12,14 @@ function NavItem({
   label,
   isActive,
   isDesktop,
+  children,
 }: {
   href: string
   icon?: string
   label: string
   isActive: boolean
   isDesktop: boolean
+  children?: ReactNode
 }) {
   return (
     <Link
@@ -34,7 +37,7 @@ function NavItem({
       ].join(' ')}
       style={isDesktop && isActive ? { borderLeftColor: '#A68966' } : undefined}
     >
-      {icon && <HubIcon icon={icon} size={isDesktop ? 16 : 20} />}
+      {icon ? <HubIcon icon={icon} size={isDesktop ? 16 : 20} /> : children}
       <span
         className={isDesktop ? 'tracking-[0.12em] uppercase' : 'tracking-[0.1em] uppercase mt-0.5'}
       >
@@ -96,6 +99,15 @@ export default function NavMenu() {
             isActive={pathname === '/hubs/mente'}
             isDesktop
           />
+          {/* Ajustes */}
+          <NavItem
+            href="/settings"
+            label="Ajustes"
+            isActive={pathname === '/settings'}
+            isDesktop
+          >
+            <SettingsIcon size={16} />
+          </NavItem>
         </div>
       </nav>
 
@@ -135,6 +147,15 @@ export default function NavMenu() {
           isActive={pathname === '/hubs/mente'}
           isDesktop={false}
         />
+        {/* Ajustes */}
+        <NavItem
+          href="/settings"
+          label="Ajustes"
+          isActive={pathname === '/settings'}
+          isDesktop={false}
+        >
+          <SettingsIcon size={20} />
+        </NavItem>
       </nav>
     </>
   )

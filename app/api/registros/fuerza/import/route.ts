@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import { getLlm, LLM_MODEL } from '@/lib/llm'
+import { getLlmForUser } from '@/lib/llm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,8 +173,9 @@ async function updateCoachAdvice(userId: string): Promise<void> {
     'You are an AI strength coach. Analyze the user\'s recent workouts (volume, max weights, exercise variety) and write a concise 2-3 sentence progress assessment with concrete advice on what weight or reps to adjust next session. Be specific and direct. No preamble.'
 
   try {
-    const completion = await getLlm().chat.completions.create({
-      model: LLM_MODEL,
+    const { client, model } = await getLlmForUser(userId)
+    const completion = await client.chat.completions.create({
+      model,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: `Recent workouts:\n${summary}\n\nProvide your assessment and advice.` },

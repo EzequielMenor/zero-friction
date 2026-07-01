@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifySession, AUTH_COOKIE } from '@/lib/auth'
-import { getLlm, getWhisper, LLM_MODEL, EMBEDDING_MODEL, WHISPER_MODEL } from '@/lib/llm'
+import { getLlmForUser, getWhisperForUser } from '@/lib/llm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,13 +37,14 @@ async function getUserId(req: NextRequest): Promise<string | null> {
 
 // ─── Whisper ─────────────────────────────────────────────────────────────────
 
-async function transcribeAudio(file: File): Promise<string> {
+async function transcribeAudio(file: File, userId: string): Promise<string> {
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
 
-  const transcription = await getWhisper().audio.transcriptions.create({
+  const { client, model } = await getWhisperForUser(userId)
+  const transcription = await client.audio.transcriptions.create({
     file: new File([buffer], file.name, { type: file.type }),
-    model: WHISPER_MODEL,
+    model,
   })
 
   return transcription.text.trim()
@@ -105,9 +106,10 @@ const SYSTEM_PROMPT =
 const USER_PROMPT = (rawText: string) =>
   `Process this note:\n\n${rawText}`
 
-async function parseCapture(rawText: string): Promise<ParsedCapture> {
-  const completion = await getLlm().chat.completions.create({
-    model: LLM_MODEL,
+async function parseCapture(rawText: string, userId: string): Promise<ParsedCapture> {
+  const { client, model } = await getLlmForUser(userId)
+  const completion = await client.chat.completions.create({
+    model,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: USER_PROMPT(rawText) },
@@ -126,9 +128,10 @@ async function parseCapture(rawText: string): Promise<ParsedCapture> {
 
 // ─── Embeddings ────────────────────────────────────────────────────────────────
 
-async function createEmbedding(text: string): Promise<number[]> {
-  const response = await getLlm().embeddings.create({
-    model: EMBEDDING_MODEL,
+async function createEmbedding(text: string, userId: string): Promise<number[]> {
+  const { client, embeddingModel } = await getLlmForUser(userId)
+  const response = await client.embeddings.create({
+    model: embeddingModel,
     input: text,
   })
   return response.data[0].embedding
@@ -155,7 +158,7 @@ async function saveNote(
     },
   })
 
-  const embedding = await createEmbedding(parsed.cleanedContent)
+  const embedding = await createEmbedding(parsed.cleanedContent, userId)
 
   // Save embedding via raw SQL (Prisma doesn't support vector type)
   await prisma.$executeRaw`
@@ -299,7 +302,7 @@ export async function POST(req: NextRequest) {
     if (textField && typeof textField === 'string') {
       rawText = textField.trim()
     } else if (audioField instanceof File && audioField.size > 0) {
-      rawText = await transcribeAudio(audioField)
+      rawText = await transcribeAudio(audioField, userId)
       // transcribeOnly: return the raw transcript immediately — no LLM parse, no DB writes.
       if (transcribeOnly) {
         return NextResponse.json({ text: rawText })
@@ -331,7 +334,7 @@ export async function POST(req: NextRequest) {
   // 3. Parse via Chat Completion
   let parsed: ParsedCapture
   try {
-    parsed = await parseCapture(rawText)
+    parsed = await parseCapture(rawText, userId)
   } catch (err) {
     console.error('Chat Completion error:', err)
     return NextResponse.json(

@@ -129,10 +129,14 @@ function GraphCanvas({ nodes, links, onNodeClick }: GraphCanvasProps) {
     resize()
     window.addEventListener('resize', resize)
 
+    const canvas = canvasRef.current
+    const width = canvas ? canvas.width : 800
+    const height = canvas ? canvas.height : 600
+
     const simulation = forceSimulation<GraphNode, GraphLink>(nodes)
       .force('link', forceLink<GraphNode, GraphLink>(links).id((d) => d.id).distance(120))
       .force('charge', forceManyBody().strength(-400))
-      .force('center', forceCenter())
+      .force('center', forceCenter(width / 2, height / 2))
       .force('collide', forceCollide(30))
       .on('tick', draw)
 

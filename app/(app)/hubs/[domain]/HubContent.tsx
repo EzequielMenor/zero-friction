@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { HUBS, domainMeta } from '@/lib/hubs'
 import { HubIcon } from '@/components/icons'
 import { NotePanel, type NoteItem } from '@/components/NotePanel'
@@ -159,8 +160,53 @@ export default function HubContent({ slug }: { slug: string }) {
         </p>
       </div>
 
+      {/* Registros Sub-View Directory */}
+      {slug === 'registros' && (
+        <div className="space-y-3">
+          <p className="text-[#5A5A5A] text-xs mb-4">
+            Seleccioná un submódulo para acceder a su panel de control.
+          </p>
+          {[
+            {
+              href: '/hubs/registros/fuerza',
+              label: 'Fuerza',
+              desc: 'Entrenamientos, volumen y récords personales',
+            },
+            {
+              href: '/hubs/registros/finanzas',
+              label: 'Finanzas',
+              desc: 'Ciclo de nómina, distribución de gastos y suscripciones',
+            },
+            {
+              href: '/hubs/registros/habitos',
+              label: 'Hábitos',
+              desc: 'Seguimiento de hábitos y rutinas diarias',
+            },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center justify-between border border-graphite-border bg-graphite-card px-5 py-4 hover:border-[#A68966]/40 transition-colors group"
+            >
+              <div>
+                <h3 className="font-serif text-[#E3E2E2] text-lg group-hover:text-[#A68966]/80 transition-colors">
+                  {item.label}
+                </h3>
+                <p className="text-[#5A5A5A] text-xs mt-0.5">{item.desc}</p>
+              </div>
+              <div className="text-[#5A5A5A] group-hover:text-[#A68966] transition-colors">
+                <svg viewBox="0 0 12 12" className="w-3 h-3">
+                  <polyline points="2,1 10,1 10,9" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  <line x1="10" y1="1" x2="2" y2="9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* Smart Tags Filter — only for espiritual */}
-      {allTags.length > 0 && (
+      {allTags.length > 0 && slug !== 'registros' && (
         <div className="flex flex-wrap gap-2 mb-6">
           <button
             onClick={() => setActiveTag(null)}
@@ -189,7 +235,7 @@ export default function HubContent({ slug }: { slug: string }) {
       )}
 
       {/* Notes list */}
-      {filteredNotes.length === 0 ? (
+      {slug !== 'registros' && (filteredNotes.length === 0 ? (
         <p className="text-[#5A5A5A] text-sm italic mt-8">
           Sin notas en este dominio por ahora.
         </p>
@@ -199,7 +245,7 @@ export default function HubContent({ slug }: { slug: string }) {
             <NoteCard key={note.id} note={note} onOpen={setSelectedNote} />
           ))}
         </div>
-      )}
+      ))}
 
       {/* Vínculos Externos — collapsible */}
       <div className="mt-12">
