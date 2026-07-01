@@ -98,7 +98,9 @@ export default function InboxSection({
         clearTimeout(timeout)
 
         if (res.status === 200) {
-          showToast('Guardado en Hub ', 'success')
+          const body = (await res.json()) as { note?: { domain?: string } }
+          const domain = body.note?.domain ?? ''
+          showToast(`Guardado en Hub ${domain}`.trim(), 'success')
           setCards((prev) => prev.filter((c) => c.id !== noteId))
           setCardStates((prev) => {
             const next = { ...prev }
