@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from 'next/font/google';
 import "./globals.css";
 import CaptureOverlay from '@/components/CaptureOverlay';
 import NavMenu from '@/components/NavMenu';
+import ServiceWorkerRegistrar from '@/components/pwa/ServiceWorkerRegistrar';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -19,6 +20,28 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: "Monograph | Zero-Friction OS",
   description: "Sistema operativo personal basado en captura sin fricción.",
+  applicationName: "Monograph",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Monograph",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon-180x180.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#A68966",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -46,6 +69,9 @@ export default function RootLayout({
 
         {/* Capture Overlay — floating trigger */}
         <CaptureOverlay />
+
+        {/* PWA service worker — solo se registra en producción */}
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );
