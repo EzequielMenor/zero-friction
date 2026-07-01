@@ -376,7 +376,7 @@ export default function MentePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-[#5A5A5A] text-sm animate-pulse">Cargando grafo…</div>
+        <div className="text-fg-faint text-sm animate-pulse">Cargando grafo…</div>
       </div>
     )
   }
@@ -384,7 +384,7 @@ export default function MentePage() {
   if (error || !graphData) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="border border-graphite-border bg-graphite-card px-4 py-3 text-sm text-[#E3E2E2]">
+        <div className="border border-border bg-surface px-4 py-3 text-sm text-fg">
           {error ?? 'Error desconocido.'}
         </div>
       </div>
@@ -409,21 +409,21 @@ export default function MentePage() {
             <line x1="10" y1="13.5" x2="7.5" y2="16.5" />
             <line x1="14" y1="13.5" x2="16.5" y2="16.5" />
           </svg>
-          <h1 className="font-serif text-2xl text-[#E3E2E2]">Mente</h1>
+          <h1 className="font-serif text-2xl text-fg">Mente</h1>
         </div>
-        <p className="text-[11px] tracking-[0.15em] uppercase text-[#5A5A5A] mt-1 ml-1">
+        <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint mt-1 ml-1">
           {nodes.length} nodos · {links.length} vínculos
         </p>
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-6 left-6 z-10 bg-graphite-card/90 backdrop-blur-sm border border-graphite-border px-4 py-3 pointer-events-none">
-        <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mb-2">Dominios</p>
+      <div className="absolute bottom-6 left-6 z-10 bg-surface/90 backdrop-blur-sm border border-border px-4 py-3 pointer-events-none">
+        <p className="text-[10px] tracking-[0.15em] uppercase text-fg-faint mb-2">Dominios</p>
         <div className="space-y-1">
           {Object.entries(DOMAIN_COLORS).map(([domain, color]) => (
             <div key={domain} className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-              <span className="text-[11px] text-[#A1A1AA]">
+              <span className="text-[11px] text-fg-muted">
                 {domain === 'ESPIRITUAL' ? 'Espiritual' :
                  domain === 'PERSONAL' ? 'Personal' :
                  domain === 'APRENDIZAJE' ? 'Aprendizaje' :

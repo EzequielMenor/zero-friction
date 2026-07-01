@@ -258,11 +258,11 @@ export default function CalendarPage() {
   if (loading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-8 w-48 bg-graphite-border rounded" />
-        <div className="h-6 w-32 bg-graphite-border rounded" />
+        <div className="h-8 w-48 border-border rounded" />
+        <div className="h-6 w-32 border-border rounded" />
         <div className="grid grid-cols-7 gap-2 mt-6">
           {Array.from({ length: 42 }).map((_, i) => (
-            <div key={i} className="h-24 border border-graphite-border bg-graphite-card" />
+            <div key={i} className="h-24 border border-border bg-surface" />
           ))}
         </div>
       </div>
@@ -271,15 +271,15 @@ export default function CalendarPage() {
 
   if (error) {
     return (
-      <div className="border border-graphite-border bg-graphite-card px-4 py-3 flex items-center justify-between">
-        <p className="text-sm text-[#E3E2E2]">{error}</p>
+      <div className="border border-border bg-surface px-4 py-3 flex items-center justify-between">
+        <p className="text-sm text-fg">{error}</p>
         <button
           onClick={() => {
             setError(null)
             setLoading(true)
             load()
           }}
-          className="text-[10px] tracking-widest text-[#A68966] uppercase hover:underline"
+          className="text-[10px] tracking-widest text-accent uppercase hover:underline"
         >
           Reintentar
         </button>
@@ -330,30 +330,30 @@ export default function CalendarPage() {
       <div className="calendar-container">
         {/* Header */}
         <div className="mb-6">
-          <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase font-semibold">PLANIFICACIÓN</p>
+          <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold">PLANIFICACIÓN</p>
           <div className="flex items-end justify-between mt-1 flex-wrap gap-3">
             <div>
-              <h1 className="font-serif text-4xl text-[#E3E2E2]">Calendario</h1>
-              <p className="font-serif text-lg text-[#7A7A7A] mt-1">{monthLabel}</p>
+              <h1 className="font-serif text-4xl text-fg">Calendario</h1>
+              <p className="font-serif text-lg text-fg-subtle mt-1">{monthLabel}</p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={gotoPrevMonth}
                 aria-label="Mes anterior"
-                className="w-9 h-9 border border-graphite-border text-[#A1A1AA] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors text-base leading-none flex items-center justify-center"
+                className="w-9 h-9 border border-border text-fg-muted hover:border-accent/40 hover:text-accent transition-colors text-base leading-none flex items-center justify-center"
               >
                 ‹
               </button>
               <button
                 onClick={gotoToday}
-                className="px-4 h-9 border border-graphite-border text-[#A1A1AA] text-[10px] uppercase tracking-wider hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                className="px-4 h-9 border border-border text-fg-muted text-[10px] uppercase tracking-wider hover:border-accent/40 hover:text-accent transition-colors"
               >
                 Hoy
               </button>
               <button
                 onClick={gotoNextMonth}
                 aria-label="Mes siguiente"
-                className="w-9 h-9 border border-graphite-border text-[#A1A1AA] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors text-base leading-none flex items-center justify-center"
+                className="w-9 h-9 border border-border text-fg-muted hover:border-accent/40 hover:text-accent transition-colors text-base leading-none flex items-center justify-center"
               >
                 ›
               </button>
@@ -371,7 +371,7 @@ export default function CalendarPage() {
               {DAY_LABELS.map((d) => (
                 <div
                   key={d}
-                  className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] text-center py-1"
+                  className="text-[10px] tracking-[0.15em] uppercase text-fg-faint text-center py-1"
                 >
                   {d}
                 </div>
@@ -392,22 +392,22 @@ export default function CalendarPage() {
                     onClick={() => handleCellClick(cell)}
                     aria-label={`Crear tarea el ${cell.ymd}`}
                     className={[
-                      'cal-cell text-left border border-graphite-border bg-graphite-card min-h-[88px] p-1.5 flex flex-col gap-1 cursor-pointer',
+                      'cal-cell text-left border border-border bg-surface min-h-[88px] p-1.5 flex flex-col gap-1 cursor-pointer',
                       !cell.inMonth ? 'opacity-30' : '',
-                      cell.isToday ? 'border-[#A68966]/60 bg-[#A68966]/5' : '',
+                      cell.isToday ? 'border-accent/60 bg-accent/5' : '',
                     ].join(' ')}
                   >
                     <div className="flex items-center justify-between">
                       <span
                         className={[
                           'text-[10px] font-medium',
-                          cell.isToday ? 'text-[#A68966]' : 'text-[#7A7A7A]',
+                          cell.isToday ? 'text-accent' : 'text-fg-subtle',
                         ].join(' ')}
                       >
                         {cell.date.getDate()}
                       </span>
                       {cell.ymd === todayYMD && cell.inMonth && (
-                        <span className="text-[8px] uppercase tracking-wider text-[#A68966]">
+                        <span className="text-[8px] uppercase tracking-wider text-accent">
                           Hoy
                         </span>
                       )}
@@ -429,11 +429,11 @@ export default function CalendarPage() {
                           style={{ borderLeftColor: domainColor(t.domain) }}
                           title={t.title}
                         >
-                          <span className="truncate text-[#A1A1AA]">{truncate(t.title, 30)}</span>
+                          <span className="truncate text-fg-muted">{truncate(t.title, 30)}</span>
                         </div>
                       ))}
                       {overflow > 0 && (
-                        <div className="text-[9px] text-[#5A5A5A] pl-1">+{overflow}</div>
+                        <div className="text-[9px] text-fg-faint pl-1">+{overflow}</div>
                       )}
                     </div>
                   </button>
@@ -442,7 +442,7 @@ export default function CalendarPage() {
             </div>
 
             {monthTotal === 0 && (
-              <p className="text-[#5A5A5A] text-sm italic mt-8">
+              <p className="text-fg-faint text-sm italic mt-8">
                 No hay tareas este mes.
               </p>
             )}
@@ -451,14 +451,14 @@ export default function CalendarPage() {
           {/* Backlog sidebar */}
           <aside className="mt-8 md:mt-0 md:sticky md:top-8">
             <div className="flex items-baseline justify-between mb-3">
-              <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase font-semibold">
+              <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold">
                 Tareas sin Fecha
               </p>
-              <span className="text-[10px] text-[#5A5A5A]">{backlog.length}</span>
+              <span className="text-[10px] text-fg-faint">{backlog.length}</span>
             </div>
 
             {backlog.length === 0 ? (
-              <p className="text-[#5A5A5A] text-xs italic">
+              <p className="text-fg-faint text-xs italic">
                 Todo al día. No quedan tareas sin fecha.
               </p>
             ) : (
@@ -468,7 +468,7 @@ export default function CalendarPage() {
                     key={n.id}
                     type="button"
                     onClick={() => setSelectedNote(n)}
-                    className="w-full text-left border border-graphite-border bg-graphite-card px-3 py-2.5 hover:border-[#A68966]/30 transition-colors group"
+                    className="w-full text-left border border-border bg-surface px-3 py-2.5 hover:border-accent/30 transition-colors group"
                   >
                     <div className="flex items-start gap-2">
                       <span
@@ -477,11 +477,11 @@ export default function CalendarPage() {
                         aria-hidden
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-[#E3E2E2] truncate group-hover:text-[#A68966]/80 transition-colors">
+                        <p className="text-xs text-fg truncate group-hover:text-accent/80 transition-colors">
                           {n.title || 'Sin título'}
                         </p>
                         {n.status === 'IN_PROGRESS' && (
-                          <span className="inline-block mt-1 text-[9px] uppercase tracking-wider border border-[#A68966]/40 text-[#A68966] px-1.5 py-0.5">
+                          <span className="inline-block mt-1 text-[9px] uppercase tracking-wider border border-accent/40 text-accent px-1.5 py-0.5">
                             {STATUS_LABEL[n.status]}
                           </span>
                         )}
