@@ -25,6 +25,14 @@ interface Subscription {
   dayOfMonth: number
 }
 
+interface AccountData {
+  id: string
+  name: string
+  initialBalance: number
+  currentBalance: number
+  currency: string
+}
+
 interface FinanzasData {
   transactions: Transaction[]
   totalIncome: number
@@ -33,6 +41,8 @@ interface FinanzasData {
   categoryDistribution: CategoryDistribution[]
   subscriptions: Subscription[]
   startOfCycle: string
+  accounts: AccountData[]
+  totalInitialBalance: number
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -196,6 +206,120 @@ function CircularChart({ data }: { data: CategoryDistribution[] }) {
   )
 }
 
+// ─── Accounts Panel ──────────────────────────────────────────────────────────
+
+function AccountsPanel({ accounts, onAdd, onDelete }: {
+  accounts: AccountData[]
+  onAdd: () => void
+  onDelete: (id: string) => void
+}) {
+  const [name, setName] = useState('')
+  const [initialBalance, setInitialBalance] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
+
+  const formatCurrency = (n: number) =>
+    n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 0 })
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setStatus(null)
+
+    if (!name.trim()) {
+      setStatus('error:El nombre es requerido')
+      return
+    }
+
+    const balanceNum = parseFloat(initialBalance) || 0
+
+    try {
+      const res = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), initialBalance: balanceNum }),
+      })
+
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error ?? 'Error al crear')
+      }
+
+      setName('')
+      setInitialBalance('')
+      setStatus('ok:Cuenta creada')
+      setTimeout(onAdd, 600)
+    } catch (err) {
+      setStatus(`error:${err instanceof Error ? err.message : 'Error'}`)
+    }
+  }
+
+  const statusColor = status?.startsWith('ok') ? 'text-[#34D399]' : status?.startsWith('error') ? 'text-[#F87171]' : ''
+  const statusText = status?.startsWith('ok') ? status.split(':')[1] : status?.startsWith('error') ? status.split(':')[1] : null
+
+  return (
+    <div className="border border-graphite-border bg-graphite-card p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A]">Mis Cuentas / Carteras</h2>
+      </div>
+
+      {accounts.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-[#5A5A5A] text-xs italic mb-3">Sin cuentas creadas. Creá tu primera cuenta para empezar a trackear por separado.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {accounts.map((acc) => (
+            <div key={acc.id} className="flex items-center justify-between border border-graphite-border px-4 py-3">
+              <div>
+                <p className="text-[#E3E2E2] text-sm font-serif">{acc.name}</p>
+                <p className="text-[#5A5A5A] text-xs">Inicial: {formatCurrency(acc.initialBalance)}</p>
+              </div>
+              <div className="text-right">
+                <p className={`text-sm font-serif ${acc.currentBalance >= 0 ? 'text-[#34D399]' : 'text-[#F87171]'}`}>
+                  {formatCurrency(acc.currentBalance)}
+                </p>
+                <button
+                  onClick={() => onDelete(acc.id)}
+                  className="text-[#5A5A5A] hover:text-[#F87171] transition-colors text-xs mt-1"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={handleAdd} className="space-y-2 border-t border-graphite-border pt-4">
+        <p className="text-[10px] uppercase tracking-wider text-[#5A5A5A] mb-2">Nueva cuenta</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre (ej: Banco Principal)"
+            className="flex-1 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+          />
+          <input
+            type="number"
+            value={initialBalance}
+            onChange={(e) => setInitialBalance(e.target.value)}
+            placeholder="Saldo inicial"
+            step="0.01"
+            className="w-32 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+          />
+        </div>
+        <button
+          type="submit"
+          className="w-full border border-[#A68966]/50 text-[#A68966] text-xs uppercase tracking-wider py-2 rounded hover:bg-[#A68966]/10 transition-colors"
+        >
+          + Nueva Cuenta
+        </button>
+        {statusText && <p className={`text-xs ${statusColor} text-center`}>{statusText}</p>}
+      </form>
+    </div>
+  )
+}
+
 // ─── Balance Callout ──────────────────────────────────────────────────────────
 
 function BalanceCallout({
@@ -260,12 +384,13 @@ function BalanceCallout({
 
 // ─── Quick Add Transaction ────────────────────────────────────────────────────
 
-function QuickAddTransaction({ onSuccess }: { onSuccess: () => void }) {
+function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[]; onSuccess: () => void }) {
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [category, setCategory] = useState('GASTOS FIJOS')
   const [isIncome, setIsIncome] = useState(false)
+  const [accountId, setAccountId] = useState('')
   const [status, setStatus] = useState<string | null>(null)
 
   const categories = Object.keys(CATEGORY_LABELS)
@@ -281,15 +406,20 @@ function QuickAddTransaction({ onSuccess }: { onSuccess: () => void }) {
     }
 
     try {
+      const payload: Record<string, unknown> = {
+        amount: isIncome ? numAmount : -numAmount,
+        description: description.trim() || (isIncome ? 'Ingreso' : 'Gasto'),
+        date,
+        category,
+      }
+      if (accountId) {
+        payload.accountId = accountId
+      }
+
       const res = await fetch('/api/registros/finanzas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: isIncome ? numAmount : -numAmount,
-          description: description.trim() || (isIncome ? 'Ingreso' : 'Gasto'),
-          date,
-          category,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) {
@@ -300,6 +430,7 @@ function QuickAddTransaction({ onSuccess }: { onSuccess: () => void }) {
       setAmount('')
       setDescription('')
       setDate(new Date().toISOString().split('T')[0])
+      setAccountId('')
       setStatus('ok:Transacción registrada')
       setTimeout(onSuccess, 600)
     } catch (err) {
@@ -339,6 +470,21 @@ function QuickAddTransaction({ onSuccess }: { onSuccess: () => void }) {
           Ingreso
         </button>
       </div>
+
+      {accounts.length > 0 && (
+        <select
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+          className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50"
+        >
+          <option value="">Sin cuenta (opcional)</option>
+          {accounts.map((acc) => (
+            <option key={acc.id} value={acc.id}>
+              {acc.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       <div className="flex gap-2">
         <input
@@ -561,6 +707,16 @@ export default function FinanzasPage() {
     }
   }
 
+  const handleDeleteAccount = async (id: string) => {
+    try {
+      const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' })
+      if (!res.ok && res.status !== 204) throw new Error('Error al eliminar')
+      load()
+    } catch {
+      // Silently fail
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -591,6 +747,13 @@ export default function FinanzasPage() {
         </p>
       </div>
 
+      {/* Accounts Panel */}
+      <AccountsPanel
+        accounts={data.accounts}
+        onAdd={load}
+        onDelete={handleDeleteAccount}
+      />
+
       {/* Balance Callout */}
       <BalanceCallout
         netBalance={data.netBalance}
@@ -613,7 +776,7 @@ export default function FinanzasPage() {
         <div className="space-y-6">
           {/* Quick Add Transaction */}
           <div className="border border-graphite-border bg-graphite-card p-5">
-            <QuickAddTransaction onSuccess={load} />
+            <QuickAddTransaction accounts={data.accounts} onSuccess={load} />
           </div>
 
           {/* Subscriptions Panel */}
