@@ -101,7 +101,7 @@ function CircularChart({ data }: { data: CategoryDistribution[] }) {
           <circle cx={CX} cy={CY} r={R} fill="none" stroke="#1C1C1F" strokeWidth="20" />
           <circle cx={CX} cy={CY} r={INNER_R} fill="#0D0D0F" />
         </svg>
-        <p className="text-[#5A5A5A] text-xs italic mt-4">Sin gastos registrados</p>
+        <p className="text-fg-faint text-xs italic mt-4">Sin gastos registrados</p>
       </div>
     )
   }
@@ -175,11 +175,11 @@ function CircularChart({ data }: { data: CategoryDistribution[] }) {
                 className="w-2 h-2 rounded-full"
                 style={{ backgroundColor: CATEGORY_COLORS[entry.category.toUpperCase()] ?? '#5A5A5A' }}
               />
-              <span className="text-[11px] text-[#A1A1AA]">
+              <span className="text-[11px] text-fg-muted">
                 {CATEGORY_LABELS[entry.category.toUpperCase()] ?? entry.category}
               </span>
             </div>
-            <span className="text-[11px] text-[#5A5A5A]">{entry.percentage}%</span>
+            <span className="text-[11px] text-fg-faint">{entry.percentage}%</span>
           </div>
         ))}
       </div>
@@ -233,34 +233,34 @@ function AccountsPanel({ accounts, onAdd, onDelete }: {
     }
   }
 
-  const statusColor = status?.startsWith('ok') ? 'text-[#34D399]' : status?.startsWith('error') ? 'text-[#F87171]' : ''
+  const statusColor = status?.startsWith('ok') ? 'text-success' : status?.startsWith('error') ? 'text-error' : ''
   const statusText = status?.startsWith('ok') ? status.split(':')[1] : status?.startsWith('error') ? status.split(':')[1] : null
 
   return (
-    <div className="border border-graphite-border bg-graphite-card p-5 space-y-4">
+    <div className="border border-border bg-surface p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A]">Mis Cuentas / Carteras</h2>
+        <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint">Mis Cuentas / Carteras</h2>
       </div>
 
       {accounts.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-[#5A5A5A] text-xs italic mb-3">Sin cuentas creadas. Creá tu primera cuenta para empezar a trackear por separado.</p>
+          <p className="text-fg-faint text-xs italic mb-3">Sin cuentas creadas. Creá tu primera cuenta para empezar a trackear por separado.</p>
         </div>
       ) : (
         <div className="space-y-2">
           {accounts.map((acc) => (
-            <div key={acc.id} className="flex items-center justify-between border border-graphite-border px-4 py-3">
+            <div key={acc.id} className="flex items-center justify-between border border-border px-4 py-3">
               <div>
-                <p className="text-[#E3E2E2] text-sm font-serif">{acc.name}</p>
-                <p className="text-[#5A5A5A] text-xs">Inicial: {formatCurrency(acc.initialBalance)}</p>
+                <p className="text-fg text-sm font-serif">{acc.name}</p>
+                <p className="text-fg-faint text-xs">Inicial: {formatCurrency(acc.initialBalance)}</p>
               </div>
               <div className="text-right">
-                <p className={`text-sm font-serif ${acc.currentBalance >= 0 ? 'text-[#34D399]' : 'text-[#F87171]'}`}>
+                <p className={`text-sm font-serif ${acc.currentBalance >= 0 ? 'text-success' : 'text-error'}`}>
                   {formatCurrency(acc.currentBalance)}
                 </p>
                 <button
                   onClick={() => onDelete(acc.id)}
-                  className="text-[#5A5A5A] hover:text-[#F87171] transition-colors text-xs mt-1"
+                  className="text-fg-faint hover:text-error transition-colors text-xs mt-1"
                 >
                   Eliminar
                 </button>
@@ -270,15 +270,15 @@ function AccountsPanel({ accounts, onAdd, onDelete }: {
         </div>
       )}
 
-      <form onSubmit={handleAdd} className="space-y-2 border-t border-graphite-border pt-4">
-        <p className="text-[10px] uppercase tracking-wider text-[#5A5A5A] mb-2">Nueva cuenta</p>
+      <form onSubmit={handleAdd} className="space-y-2 border-t border-border pt-4">
+        <p className="text-[10px] uppercase tracking-wider text-fg-faint mb-2">Nueva cuenta</p>
         <div className="flex gap-2">
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre (ej: Banco Principal)"
-            className="flex-1 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+            className="flex-1 bg-surface border border-border text-fg text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-fg-faint"
           />
           <input
             type="number"
@@ -286,12 +286,12 @@ function AccountsPanel({ accounts, onAdd, onDelete }: {
             onChange={(e) => setInitialBalance(e.target.value)}
             placeholder="Saldo inicial"
             step="0.01"
-            className="w-32 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+            className="w-32 bg-surface border border-border text-fg text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-fg-faint"
           />
         </div>
         <button
           type="submit"
-          className="w-full border border-[#A68966]/50 text-[#A68966] text-xs uppercase tracking-wider py-2 rounded hover:bg-[#A68966]/10 transition-colors"
+          className="w-full border border-accent/50 text-accent text-xs uppercase tracking-wider py-2 rounded hover:bg-accent/10 transition-colors"
         >
           + Nueva Cuenta
         </button>
@@ -331,32 +331,32 @@ function BalanceCallout({
   const isPositive = netBalance >= 0
 
   return (
-    <div className="border border-[#A68966]/30 bg-[#A68966]/5 px-6 py-5 rounded">
+    <div className="border border-accent/30 bg-accent/5 px-6 py-5 rounded">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <WalletIcon size={32} />
           <div>
-            <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A]">Balance del ciclo</p>
-            <p className="text-[10px] text-[#5A5A5A] mt-0.5">Desde {startDate}</p>
+            <p className="text-[10px] tracking-[0.15em] uppercase text-fg-faint">Balance del ciclo</p>
+            <p className="text-[10px] text-fg-faint mt-0.5">Desde {startDate}</p>
           </div>
         </div>
         <div
-          className={`font-serif text-3xl ${isPositive ? 'text-[#34D399]' : 'text-[#F87171]'}`}
+          className={`font-serif text-3xl ${isPositive ? 'text-success' : 'text-error'}`}
         >
           {formatCurrency(netBalance)}
         </div>
       </div>
 
-      <div className="h-px bg-[#1C1C1F] mb-4" />
+      <div className="h-px bg-border-subtle mb-4" />
 
       <div className="flex gap-8">
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-[#5A5A5A]">Ingresos</p>
-          <p className="text-[#34D399] text-lg font-serif mt-0.5">{formatCurrency(totalIncome)}</p>
+          <p className="text-[10px] uppercase tracking-wider text-fg-faint">Ingresos</p>
+          <p className="text-success text-lg font-serif mt-0.5">{formatCurrency(totalIncome)}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-[#5A5A5A]">Gastos</p>
-          <p className="text-[#F87171] text-lg font-serif mt-0.5">{formatCurrency(totalExpenses)}</p>
+          <p className="text-[10px] uppercase tracking-wider text-fg-faint">Gastos</p>
+          <p className="text-error text-lg font-serif mt-0.5">{formatCurrency(totalExpenses)}</p>
         </div>
       </div>
     </div>
@@ -419,12 +419,12 @@ function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[];
     }
   }
 
-  const statusColor = status?.startsWith('ok') ? 'text-[#34D399]' : status?.startsWith('error') ? 'text-[#F87171]' : ''
+  const statusColor = status?.startsWith('ok') ? 'text-success' : status?.startsWith('error') ? 'text-error' : ''
   const statusText = status?.startsWith('ok') ? status.split(':')[1] : status?.startsWith('error') ? status.split(':')[1] : null
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <h3 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A]">Agregar Transacción</h3>
+      <h3 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint">Agregar Transacción</h3>
 
       {/* Income / Expense toggle */}
       <div className="flex gap-1">
@@ -433,8 +433,8 @@ function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[];
           onClick={() => setIsIncome(false)}
           className={`flex-1 text-xs py-1.5 border transition-colors ${
             !isIncome
-              ? 'border-[#F87171]/60 text-[#F87171] bg-[#F87171]/5'
-              : 'border-graphite-border text-[#5A5A5A] hover:border-[#F87171]/30'
+              ? 'border-error/60 text-error bg-error/5'
+              : 'border-border text-fg-faint hover:border-error/30'
           }`}
         >
           Gasto
@@ -444,8 +444,8 @@ function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[];
           onClick={() => setIsIncome(true)}
           className={`flex-1 text-xs py-1.5 border transition-colors ${
             isIncome
-              ? 'border-[#34D399]/60 text-[#34D399] bg-[#34D399]/5'
-              : 'border-graphite-border text-[#5A5A5A] hover:border-[#34D399]/30'
+              ? 'border-success/60 text-success bg-success/5'
+              : 'border-border text-fg-faint hover:border-success/30'
           }`}
         >
           Ingreso
@@ -456,7 +456,7 @@ function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[];
         <select
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
-          className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50"
+          className="w-full bg-surface border border-border text-fg-muted text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50"
         >
           <option value="">Sin cuenta (opcional)</option>
           {accounts.map((acc) => (
@@ -475,13 +475,13 @@ function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[];
           placeholder="Importe"
           step="0.01"
           min="0"
-          className="flex-1 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+          className="flex-1 bg-surface border border-border text-fg text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-fg-faint"
         />
         <input
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="w-36 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50"
+          className="w-36 bg-surface border border-border text-fg-muted text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50"
         />
       </div>
 
@@ -491,13 +491,13 @@ function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[];
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Descripción (opcional)"
-          className="flex-1 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+          className="flex-1 bg-surface border border-border text-fg text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-fg-faint"
         />
         {!isIncome && (
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-36 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50"
+            className="w-36 bg-surface border border-border text-fg-muted text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50"
           >
             {categories.map((cat) => (
               <option key={cat} value={cat}>
@@ -510,7 +510,7 @@ function QuickAddTransaction({ accounts, onSuccess }: { accounts: AccountData[];
 
       <button
         type="submit"
-        className="w-full border border-[#A68966]/50 text-[#A68966] text-xs uppercase tracking-wider py-2 rounded hover:bg-[#A68966]/10 transition-colors"
+        className="w-full border border-accent/50 text-accent text-xs uppercase tracking-wider py-2 rounded hover:bg-accent/10 transition-colors"
       >
         Registrar
       </button>
@@ -574,7 +574,7 @@ function SubscriptionsPanel({ subscriptions, onDelete, onAdd }: {
     }
   }
 
-  const statusColor = status?.startsWith('ok') ? 'text-[#34D399]' : status?.startsWith('error') ? 'text-[#F87171]' : ''
+  const statusColor = status?.startsWith('ok') ? 'text-success' : status?.startsWith('error') ? 'text-error' : ''
   const statusText = status?.startsWith('ok') ? status.split(':')[1] : status?.startsWith('error') ? status.split(':')[1] : null
 
   const formatCurrency = (n: number) =>
@@ -582,27 +582,27 @@ function SubscriptionsPanel({ subscriptions, onDelete, onAdd }: {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A]">Suscripciones</h3>
+      <h3 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint">Suscripciones</h3>
 
       {/* Subscription list */}
       <div className="space-y-2">
         {subscriptions.length === 0 ? (
-          <p className="text-[#5A5A5A] text-xs italic">Sin suscripciones activas</p>
+          <p className="text-fg-faint text-xs italic">Sin suscripciones activas</p>
         ) : (
           subscriptions.map((sub) => (
             <div
               key={sub.id}
-              className="flex items-center justify-between border border-graphite-border bg-graphite-card px-4 py-3"
+              className="flex items-center justify-between border border-border bg-surface px-4 py-3"
             >
               <div>
-                <p className="text-[#E3E2E2] text-sm font-serif">{sub.name}</p>
-                <p className="text-[#5A5A5A] text-xs">
+                <p className="text-fg text-sm font-serif">{sub.name}</p>
+                <p className="text-fg-faint text-xs">
                   {formatCurrency(sub.amount)} · día {sub.dayOfMonth}
                 </p>
               </div>
               <button
                 onClick={() => onDelete(sub.id)}
-                className="text-[#5A5A5A] hover:text-[#F87171] transition-colors p-1"
+                className="text-fg-faint hover:text-error transition-colors p-1"
                 title="Eliminar suscripción"
               >
                 <TrashIcon size={14} />
@@ -613,14 +613,14 @@ function SubscriptionsPanel({ subscriptions, onDelete, onAdd }: {
       </div>
 
       {/* Add subscription form */}
-      <form onSubmit={handleAdd} className="space-y-2 border-t border-graphite-border pt-4">
-        <p className="text-[10px] uppercase tracking-wider text-[#5A5A5A] mb-2">Nueva suscripción</p>
+      <form onSubmit={handleAdd} className="space-y-2 border-t border-border pt-4">
+        <p className="text-[10px] uppercase tracking-wider text-fg-faint mb-2">Nueva suscripción</p>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nombre"
-          className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+          className="w-full bg-surface border border-border text-fg text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-fg-faint"
         />
         <div className="flex gap-2">
           <input
@@ -630,7 +630,7 @@ function SubscriptionsPanel({ subscriptions, onDelete, onAdd }: {
             placeholder="Importe"
             step="0.01"
             min="0"
-            className="flex-1 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+            className="flex-1 bg-surface border border-border text-fg text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-fg-faint"
           />
           <input
             type="number"
@@ -639,12 +639,12 @@ function SubscriptionsPanel({ subscriptions, onDelete, onAdd }: {
             placeholder="Día"
             min="1"
             max="31"
-            className="w-20 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+            className="w-20 bg-surface border border-border text-fg-muted text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-fg-faint"
           />
         </div>
         <button
           type="submit"
-          className="w-full border border-[#A68966]/50 text-[#A68966] text-xs uppercase tracking-wider py-2 rounded hover:bg-[#A68966]/10 transition-colors"
+          className="w-full border border-accent/50 text-accent text-xs uppercase tracking-wider py-2 rounded hover:bg-accent/10 transition-colors"
         >
           Agregar
         </button>
@@ -730,14 +730,14 @@ export default function FinanzasPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-[#5A5A5A] text-sm animate-pulse">Cargando…</div>
+        <div className="text-fg-faint text-sm animate-pulse">Cargando…</div>
       </div>
     )
   }
 
   if (error || !data) {
     return (
-      <div className="border border-graphite-border bg-graphite-card px-4 py-3 text-sm text-[#E3E2E2]">
+      <div className="border border-border bg-surface px-4 py-3 text-sm text-fg">
         {error ?? 'Error desconocido.'}
       </div>
     )
@@ -749,10 +749,10 @@ export default function FinanzasPage() {
       <div>
         <div className="flex items-center gap-3 mb-2">
           <WalletIcon size={36} />
-          <h1 className="font-serif text-3xl text-[#E3E2E2]">Finanzas</h1>
+          <h1 className="font-serif text-3xl text-fg">Finanzas</h1>
         </div>
         <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
-        <p className="text-[11px] tracking-[0.15em] uppercase text-[#5A5A5A]">
+        <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint">
           {data.transactions.length} transacciones en el ciclo actual
         </p>
       </div>
@@ -775,8 +775,8 @@ export default function FinanzasPage() {
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Category Distribution Chart */}
-        <div className="border border-graphite-border bg-graphite-card p-5">
-          <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-4">
+        <div className="border border-border bg-surface p-5">
+          <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint mb-4">
             Distribución de gastos
           </h2>
           <CircularChart data={data.categoryDistribution} />
@@ -785,12 +785,12 @@ export default function FinanzasPage() {
         {/* Right column */}
         <div className="space-y-6">
           {/* Quick Add Transaction */}
-          <div className="border border-graphite-border bg-graphite-card p-5">
+          <div className="border border-border bg-surface p-5">
             <QuickAddTransaction accounts={data.accounts} onSuccess={load} />
           </div>
 
           {/* Subscriptions Panel */}
-          <div className="border border-graphite-border bg-graphite-card p-5">
+          <div className="border border-border bg-surface p-5">
             <SubscriptionsPanel
               subscriptions={data.subscriptions}
               onDelete={handleDeleteSubscription}
@@ -811,8 +811,8 @@ export default function FinanzasPage() {
         <div
           className={`fixed bottom-6 right-6 z-50 px-4 py-2 border text-xs uppercase tracking-wider ${
             toast.kind === 'ok'
-              ? 'border-[#34D399]/60 text-[#34D399] bg-[#34D399]/10'
-              : 'border-[#F87171]/60 text-[#F87171] bg-[#F87171]/10'
+              ? 'border-success/60 text-success bg-success/10'
+              : 'border-error/60 text-error bg-error/10'
           }`}
         >
           {toast.message}
@@ -848,26 +848,26 @@ function TransactionsHistory({
 
   return (
     <div>
-      <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-3">
+      <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint mb-3">
         Historial de Transacciones
       </h2>
-      <div className="border border-graphite-border bg-graphite-card overflow-hidden">
+      <div className="border border-border bg-surface overflow-hidden">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-graphite-border">
-              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+            <tr className="border-b border-border">
+              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                 Fecha
               </th>
-              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                 Descripción
               </th>
-              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                 Categoría
               </th>
-              <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+              <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                 Importe
               </th>
-              <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+              <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                 <span className="sr-only">Acciones</span>
               </th>
             </tr>
@@ -875,7 +875,7 @@ function TransactionsHistory({
           <tbody>
             {transactions.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-[#5A5A5A] text-xs italic">
+                <td colSpan={5} className="px-4 py-6 text-center text-fg-faint text-xs italic">
                   Sin transacciones en el ciclo actual.
                 </td>
               </tr>
@@ -885,20 +885,20 @@ function TransactionsHistory({
                 return (
                   <tr
                     key={t.id}
-                    className="border-b border-graphite-border last:border-0 hover:bg-[#A68966]/5 transition-colors"
+                    className="border-b border-border last:border-0 hover:bg-accent/5 transition-colors"
                   >
-                    <td className="px-4 py-3 text-[#A1A1AA] whitespace-nowrap">
+                    <td className="px-4 py-3 text-fg-muted whitespace-nowrap">
                       {formatDate(t.date)}
                     </td>
-                    <td className="px-4 py-3 text-[#E3E2E2] font-serif">
+                    <td className="px-4 py-3 text-fg font-serif">
                       {t.description}
                     </td>
-                    <td className="px-4 py-3 text-[#A1A1AA]">
+                    <td className="px-4 py-3 text-fg-muted">
                       {CATEGORY_LABELS[t.category.toUpperCase()] ?? t.category}
                     </td>
                     <td
                       className={`px-4 py-3 text-right font-serif ${
-                        isIncome ? 'text-[#34D399]' : 'text-[#F87171]'
+                        isIncome ? 'text-success' : 'text-error'
                       }`}
                     >
                       {isIncome ? '+' : '−'}
@@ -907,7 +907,7 @@ function TransactionsHistory({
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => onDelete(t.id)}
-                        className="text-[#5A5A5A] hover:text-[#F87171] transition-colors p-1"
+                        className="text-fg-faint hover:text-error transition-colors p-1"
                         title="Eliminar transacción"
                         aria-label="Eliminar transacción"
                       >

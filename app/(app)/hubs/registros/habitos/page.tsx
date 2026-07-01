@@ -131,20 +131,20 @@ function HabitCard({
   const streak = useMemo(() => calcStreak(logSet), [logSet])
 
   return (
-    <div className="border border-graphite-border bg-graphite-card p-5 space-y-5">
+    <div className="border border-border bg-surface p-5 space-y-5">
       {/* Title row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="font-serif text-[#E3E2E2] text-lg leading-snug truncate">
+          <h3 className="font-serif text-fg text-lg leading-snug truncate">
             {habit.name}
           </h3>
-          <p className="text-[11px] tracking-[0.1em] uppercase text-[#5A5A5A] mt-1">
+          <p className="text-[11px] tracking-[0.1em] uppercase text-fg-faint mt-1">
             {habit.frequency}
           </p>
         </div>
         <button
           onClick={() => onDelete(habit.id)}
-          className="text-[#5A5A5A] hover:text-[#F87171] transition-colors p-1 -mt-1"
+          className="text-fg-faint hover:text-error transition-colors p-1 -mt-1"
           title="Eliminar hábito"
         >
           <TrashIcon size={14} />
@@ -154,11 +154,11 @@ function HabitCard({
       {/* Streak indicator */}
       <div className="flex items-baseline gap-2">
         <span
-          className={`font-serif text-2xl ${streak > 0 ? 'text-[#A68966]' : 'text-[#5A5A5A]'}`}
+          className={`font-serif text-2xl ${streak > 0 ? 'text-accent' : 'text-fg-faint'}`}
         >
           {streak}
         </span>
-        <span className="text-[11px] tracking-[0.1em] uppercase text-[#5A5A5A]">
+        <span className="text-[11px] tracking-[0.1em] uppercase text-fg-faint">
           {streak === 0
             ? 'Sin racha'
             : streak === 1
@@ -175,8 +175,8 @@ function HabitCard({
         onClick={() => onToggle(habit.id)}
         className={`w-full border text-xs uppercase tracking-wider py-2 rounded transition-colors ${
           completedToday
-            ? 'border-[#34D399]/60 text-[#34D399] bg-[#34D399]/5 hover:bg-[#34D399]/10'
-            : 'border-graphite-border text-[#A1A1AA] hover:border-[#A68966]/50 hover:text-[#A68966]'
+            ? 'border-success/60 text-success bg-success/5 hover:bg-success/10'
+            : 'border-border text-fg-muted hover:border-accent/50 hover:text-accent'
         }`}
       >
         {completedToday ? '✓ Completado hoy' : 'Marcar hoy'}
@@ -219,9 +219,9 @@ function AddHabitForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   const statusColor = status?.startsWith('ok')
-    ? 'text-[#34D399]'
+    ? 'text-success'
     : status?.startsWith('error')
-      ? 'text-[#F87171]'
+      ? 'text-error'
       : ''
   const statusText = status?.startsWith('ok')
     ? status.split(':')[1]
@@ -231,7 +231,7 @@ function AddHabitForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <h3 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A]">
+      <h3 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint">
         Nuevo hábito
       </h3>
       <div className="flex gap-2">
@@ -240,12 +240,12 @@ function AddHabitForm({ onSuccess }: { onSuccess: () => void }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Ej. Meditar 10 min"
-          className="flex-1 bg-graphite-card border border-graphite-border text-[#E3E2E2] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+          className="flex-1 bg-surface border border-border text-fg text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50 placeholder-[#5A5A5A]"
         />
         <select
           value={frequency}
           onChange={(e) => setFrequency(e.target.value)}
-          className="w-32 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm px-3 py-2 rounded focus:outline-none focus:border-[#A68966]/50"
+          className="w-32 bg-surface border border-border text-fg-muted text-sm px-3 py-2 rounded focus:outline-none focus:border-accent/50"
         >
           <option value="DAILY">Diario</option>
           <option value="WEEKLY">Semanal</option>
@@ -254,7 +254,7 @@ function AddHabitForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
       <button
         type="submit"
-        className="w-full border border-[#A68966]/50 text-[#A68966] text-xs uppercase tracking-wider py-2 rounded hover:bg-[#A68966]/10 transition-colors"
+        className="w-full border border-accent/50 text-accent text-xs uppercase tracking-wider py-2 rounded hover:bg-accent/10 transition-colors"
       >
         Agregar hábito
       </button>
@@ -344,14 +344,14 @@ export default function HabitosPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-[#5A5A5A] text-sm animate-pulse">Cargando…</div>
+        <div className="text-fg-faint text-sm animate-pulse">Cargando…</div>
       </div>
     )
   }
 
   if (error || !data) {
     return (
-      <div className="border border-graphite-border bg-graphite-card px-4 py-3 text-sm text-[#E3E2E2]">
+      <div className="border border-border bg-surface px-4 py-3 text-sm text-fg">
         {error ?? 'Error desconocido.'}
       </div>
     )
@@ -363,10 +363,10 @@ export default function HabitosPage() {
       <div>
         <div className="flex items-center gap-3 mb-2">
           <FlameIcon size={36} />
-          <h1 className="font-serif text-3xl text-[#E3E2E2]">Hábitos</h1>
+          <h1 className="font-serif text-3xl text-fg">Hábitos</h1>
         </div>
         <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
-        <p className="text-[11px] tracking-[0.15em] uppercase text-[#5A5A5A]">
+        <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint">
           {data.habits.length === 0
             ? 'Sin hábitos registrados'
             : `${data.habits.length} hábito${data.habits.length !== 1 ? 's' : ''} en seguimiento`}
@@ -374,13 +374,13 @@ export default function HabitosPage() {
       </div>
 
       {/* Add habit form */}
-      <div className="border border-graphite-border bg-graphite-card p-5 max-w-xl">
+      <div className="border border-border bg-surface p-5 max-w-xl">
         <AddHabitForm onSuccess={load} />
       </div>
 
       {/* Habits grid */}
       {data.habits.length === 0 ? (
-        <p className="text-[#5A5A5A] text-sm italic">
+        <p className="text-fg-faint text-sm italic">
           Creá tu primer hábito arriba para empezar a registrar tu racha.
         </p>
       ) : (

@@ -94,7 +94,7 @@ function UploadIcon({ size = 16 }: { size?: number }) {
 function VolumeChart({ data }: { data: VolumeEntry[] }) {
   if (data.length === 0) {
     return (
-      <div className="text-[#5A5A5A] text-xs italic text-center py-8">
+      <div className="text-fg-faint text-xs italic text-center py-8">
         Sin datos de volumen aún.
       </div>
     )
@@ -215,7 +215,7 @@ function OneRMChart({
 }) {
   if (!exercise || workouts.length === 0) {
     return (
-      <div className="text-[#5A5A5A] text-xs italic text-center py-8">
+      <div className="text-fg-faint text-xs italic text-center py-8">
         Seleccioná un ejercicio para ver la evolución.
       </div>
     )
@@ -250,7 +250,7 @@ function OneRMChart({
 
   if (points.length === 0) {
     return (
-      <div className="text-[#5A5A5A] text-xs italic text-center py-8">
+      <div className="text-fg-faint text-xs italic text-center py-8">
         Sin datos de 1RM para {exercise}.
       </div>
     )
@@ -337,10 +337,10 @@ function CSVUpload({ onSuccess }: { onSuccess: () => void }) {
   )
 
   const statusColor = status?.startsWith('ok')
-    ? 'text-[#34D399]'
+    ? 'text-success'
     : status?.startsWith('error')
-    ? 'text-[#F87171]'
-    : 'text-[#5A5A5A]'
+    ? 'text-error'
+    : 'text-fg-faint'
 
   const statusText = status
     ? status.startsWith('ok')
@@ -351,8 +351,8 @@ function CSVUpload({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div
       className={[
-        'border border-dashed border-graphite-border rounded p-6 text-center cursor-pointer transition-colors',
-        dragging ? 'border-[#A68966]/60 bg-[#A68966]/5' : 'hover:border-[#A68966]/40',
+        'border border-dashed border-border rounded p-6 text-center cursor-pointer transition-colors',
+        dragging ? 'border-accent/60 bg-accent/5' : 'hover:border-accent/40',
       ].join(' ')}
       onClick={() => inputRef.current?.click()}
       onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
@@ -368,7 +368,7 @@ function CSVUpload({ onSuccess }: { onSuccess: () => void }) {
       />
       <div className="flex flex-col items-center gap-2">
         <UploadIcon size={20} />
-        <p className="text-[#A1A1AA] text-xs">
+        <p className="text-fg-muted text-xs">
           Arrastrá tu CSV de Hevy aquí o hacé click para seleccionar
         </p>
         {statusText && (
@@ -458,14 +458,14 @@ export default function FuerzaPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-[#5A5A5A] text-sm animate-pulse">Cargando…</div>
+        <div className="text-fg-faint text-sm animate-pulse">Cargando…</div>
       </div>
     )
   }
 
   if (error || !metrics) {
     return (
-      <div className="border border-graphite-border bg-graphite-card px-4 py-3 text-sm text-[#E3E2E2]">
+      <div className="border border-border bg-surface px-4 py-3 text-sm text-fg">
         {error ?? 'Error desconocido.'}
       </div>
     )
@@ -477,20 +477,20 @@ export default function FuerzaPage() {
       <div>
         <div className="flex items-center gap-3 mb-2">
           <DumbbellIcon size={36} />
-          <h1 className="font-serif text-3xl text-[#E3E2E2]">Fuerza</h1>
+          <h1 className="font-serif text-3xl text-fg">Fuerza</h1>
         </div>
         <div className="h-px bg-gradient-to-r from-[#A68966]/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
-        <p className="text-[11px] tracking-[0.15em] uppercase text-[#5A5A5A]">
+        <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint">
           {metrics.workouts.length} entrenamientos · {metrics.personalRecords.length} ejercicios con PR
         </p>
       </div>
 
       {/* AI Coach Widget */}
-      <div className="border border-[#A68966]/40 bg-[#A68966]/5 px-5 py-4 rounded">
+      <div className="border border-accent/40 bg-accent/5 px-5 py-4 rounded">
         {metrics.coachAdvice ? (
-          <p className="text-[#E3E2E2] text-sm leading-relaxed">{metrics.coachAdvice}</p>
+          <p className="text-fg text-sm leading-relaxed">{metrics.coachAdvice}</p>
         ) : (
-          <p className="text-[#5A5A5A] text-xs italic">
+          <p className="text-fg-faint text-xs italic">
             Importa tus entrenamientos para recibir consejos personalizados.
           </p>
         )}
@@ -498,7 +498,7 @@ export default function FuerzaPage() {
 
       {/* CSV Upload */}
       <div>
-        <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-3">
+        <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint mb-3">
           Importar desde Hevy
         </h2>
         <CSVUpload onSuccess={load} />
@@ -506,10 +506,10 @@ export default function FuerzaPage() {
 
       {/* Volume Chart */}
       <div>
-        <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-3">
+        <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint mb-3">
           Volumen por entrenamiento
         </h2>
-        <div className="border border-graphite-border bg-graphite-card p-4">
+        <div className="border border-border bg-surface p-4">
           <VolumeChart data={metrics.volumeHistory} />
         </div>
       </div>
@@ -517,13 +517,13 @@ export default function FuerzaPage() {
       {/* 1RM Evolution */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A]">
+          <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint">
             Evolución 1RM estimado
           </h2>
           <select
             value={selectedExercise}
             onChange={(e) => setSelectedExercise(e.target.value)}
-            className="bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 rounded focus:outline-none focus:border-[#A68966]/50"
+            className="bg-surface border border-border text-fg-muted text-xs px-2 py-1 rounded focus:outline-none focus:border-accent/50"
           >
             {exercises.map((ex) => (
               <option key={ex} value={ex}>
@@ -532,7 +532,7 @@ export default function FuerzaPage() {
             ))}
           </select>
         </div>
-        <div className="border border-graphite-border bg-graphite-card p-4">
+        <div className="border border-border bg-surface p-4">
           <OneRMChart
             data={metrics.volumeHistory}
             exercise={selectedExercise}
@@ -543,26 +543,26 @@ export default function FuerzaPage() {
 
       {/* PR Table */}
       <div>
-        <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-3">
+        <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint mb-3">
           Récords personales
         </h2>
-        <div className="border border-graphite-border bg-graphite-card overflow-hidden">
+        <div className="border border-border bg-surface overflow-hidden">
           <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-graphite-border">
-                <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+              <tr className="border-b border-border">
+                <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                   Ejercicio
                 </th>
-                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                   Peso máx
                 </th>
-                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                   Reps máx
                 </th>
-                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                   1RM est.
                 </th>
-                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-fg-faint font-normal">
                   Fecha
                 </th>
               </tr>
@@ -571,20 +571,20 @@ export default function FuerzaPage() {
               {metrics.personalRecords.map((pr) => (
                 <tr
                   key={pr.exerciseName}
-                  className="border-b border-graphite-border last:border-0 hover:bg-[#A68966]/5 transition-colors"
+                  className="border-b border-border last:border-0 hover:bg-accent/5 transition-colors"
                 >
-                  <td className="px-4 py-3 text-[#E3E2E2] font-serif">{pr.exerciseName}</td>
-                  <td className="px-4 py-3 text-right text-[#A1A1AA]">{pr.maxWeight} kg</td>
-                  <td className="px-4 py-3 text-right text-[#A1A1AA]">{pr.maxReps}</td>
-                  <td className="px-4 py-3 text-right text-[#A68966] font-medium">
+                  <td className="px-4 py-3 text-fg font-serif">{pr.exerciseName}</td>
+                  <td className="px-4 py-3 text-right text-fg-muted">{pr.maxWeight} kg</td>
+                  <td className="px-4 py-3 text-right text-fg-muted">{pr.maxReps}</td>
+                  <td className="px-4 py-3 text-right text-accent font-medium">
                     {pr.max1RM.toFixed(1)} kg
                   </td>
-                  <td className="px-4 py-3 text-right text-[#5A5A5A]">{pr.achievedAt}</td>
+                  <td className="px-4 py-3 text-right text-fg-faint">{pr.achievedAt}</td>
                 </tr>
               ))}
               {metrics.personalRecords.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-[#5A5A5A] text-xs italic">
+                  <td colSpan={5} className="px-4 py-6 text-center text-fg-faint text-xs italic">
                     Sin récords todavía.
                   </td>
                 </tr>
@@ -605,8 +605,8 @@ export default function FuerzaPage() {
         <div
           className={`fixed bottom-6 right-6 z-50 px-4 py-2 border text-xs uppercase tracking-wider ${
             toast.kind === 'ok'
-              ? 'border-[#34D399]/60 text-[#34D399] bg-[#34D399]/10'
-              : 'border-[#F87171]/60 text-[#F87171] bg-[#F87171]/10'
+              ? 'border-success/60 text-success bg-success/10'
+              : 'border-error/60 text-error bg-error/10'
           }`}
         >
           {toast.message}
@@ -639,12 +639,12 @@ function WorkoutsHistory({
 
   return (
     <div>
-      <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-3">
+      <h2 className="text-[10px] uppercase tracking-[0.15em] text-fg-faint mb-3">
         Historial de Entrenamientos
       </h2>
       <div className="space-y-3">
         {ordered.length === 0 ? (
-          <div className="border border-graphite-border bg-graphite-card px-4 py-6 text-center text-[#5A5A5A] text-xs italic">
+          <div className="border border-border bg-surface px-4 py-6 text-center text-fg-faint text-xs italic">
             Sin entrenamientos registrados.
           </div>
         ) : (
@@ -660,14 +660,14 @@ function WorkoutsHistory({
             return (
               <div
                 key={w.id}
-                className="border border-graphite-border bg-graphite-card p-5"
+                className="border border-border bg-surface p-5"
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div className="min-w-0">
-                    <h3 className="font-serif text-lg text-[#E3E2E2] truncate">
+                    <h3 className="font-serif text-lg text-fg truncate">
                       {w.title}
                     </h3>
-                    <p className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mt-1 flex items-center gap-3">
+                    <p className="text-[10px] uppercase tracking-[0.15em] text-fg-faint mt-1 flex items-center gap-3">
                       <span>{formatDate(w.date)}</span>
                       {w.duration && <span>· {w.duration}</span>}
                       <span>· {w.sets.length} sets</span>
@@ -675,7 +675,7 @@ function WorkoutsHistory({
                   </div>
                   <button
                     onClick={() => onDelete(w.id)}
-                    className="flex-shrink-0 text-[#5A5A5A] hover:text-[#F87171] transition-colors p-1"
+                    className="flex-shrink-0 text-fg-faint hover:text-error transition-colors p-1"
                     title="Eliminar entrenamiento"
                     aria-label="Eliminar entrenamiento"
                   >
@@ -686,16 +686,16 @@ function WorkoutsHistory({
                 <div className="space-y-3">
                   {Array.from(byExercise.entries()).map(([exerciseName, sets]) => (
                     <div key={exerciseName}>
-                      <p className="text-[11px] uppercase tracking-wider text-[#A68966] mb-1">
+                      <p className="text-[11px] uppercase tracking-wider text-accent mb-1">
                         {exerciseName}
                       </p>
                       <ul className="space-y-0.5">
                         {sets.map((s, i) => (
                           <li
                             key={i}
-                            className="text-xs text-[#A1A1AA] flex items-center justify-between gap-3"
+                            className="text-xs text-fg-muted flex items-center justify-between gap-3"
                           >
-                            <span className="text-[#5A5A5A] w-12">
+                            <span className="text-fg-faint w-12">
                               Set {i + 1}
                               {s.setType === 'WARMUP_SET' && ' · warmup'}
                               {s.setType === 'FAILURE_SET' && ' · failure'}
@@ -705,7 +705,7 @@ function WorkoutsHistory({
                               {s.weight} kg × {s.reps} reps
                             </span>
                             {s.estimated1RM != null && (
-                              <span className="text-[#A68966] w-20 text-right">
+                              <span className="text-accent w-20 text-right">
                                 1RM est. {s.estimated1RM.toFixed(1)}
                               </span>
                             )}
