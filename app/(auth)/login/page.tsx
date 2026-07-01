@@ -48,8 +48,8 @@ function LoginForm() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <h1 className="font-serif text-3xl text-[#E3E2E2] mb-2">Bienvenido de nuevo</h1>
-        <p className="text-sm text-[#A1A1AA] mb-10">Ingresá a tu espacio privado.</p>
+        <h1 className="font-serif text-3xl text-fg mb-2">Bienvenido de nuevo</h1>
+        <p className="text-sm text-fg-muted mb-10">Ingresá a tu espacio privado.</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <Field
@@ -74,15 +74,15 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-full bg-[#A68966] px-5 py-3 text-sm font-semibold tracking-wide text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded-full bg-accent px-5 py-3 text-sm font-semibold tracking-wide text-black transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
 
-        <p className="mt-10 text-center text-sm text-[#A1A1AA]">
+        <p className="mt-10 text-center text-sm text-fg-muted">
           ¿No tenés cuenta?{' '}
-          <a href="/signup" className="text-[#A68966] hover:underline">
+          <a href="/signup" className="text-accent hover:underline">
             Solicitar acceso
           </a>
         </p>
@@ -100,14 +100,14 @@ type FieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' |
 function Field({ label, value, onChange, ...rest }: FieldProps) {
   return (
     <label className="block">
-      <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA] mb-2">
+      <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-fg-muted mb-2">
         {label}
       </span>
       <input
         {...rest}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-graphite-border bg-graphite-card px-4 py-3 text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
+        className="w-full rounded-md border border-border bg-surface px-4 py-3 text-fg outline-none transition focus:border-accent focus:ring-1 focus:ring-accent"
       />
     </label>
   )

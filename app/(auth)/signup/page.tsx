@@ -39,8 +39,8 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <h1 className="font-serif text-3xl text-[#E3E2E2] mb-2">Solicitar acceso</h1>
-        <p className="text-sm text-[#A1A1AA] mb-10">
+        <h1 className="font-serif text-3xl text-fg mb-2">Solicitar acceso</h1>
+        <p className="text-sm text-fg-muted mb-10">
           Zero-Friction es privado. Ingresá tu código de invitación para crear una cuenta.
         </p>
 
@@ -77,15 +77,15 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-full bg-[#A68966] px-5 py-3 text-sm font-semibold tracking-wide text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded-full bg-accent px-5 py-3 text-sm font-semibold tracking-wide text-black transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? 'Creando cuenta…' : 'Crear cuenta'}
           </button>
         </form>
 
-        <p className="mt-10 text-center text-sm text-[#A1A1AA]">
+        <p className="mt-10 text-center text-sm text-fg-muted">
           ¿Ya tenés cuenta?{' '}
-          <a href="/login" className="text-[#A68966] hover:underline">
+          <a href="/login" className="text-accent hover:underline">
             Ingresar
           </a>
         </p>
@@ -104,16 +104,16 @@ type FieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' |
 function Field({ label, hint, value, onChange, ...rest }: FieldProps) {
   return (
     <label className="block">
-      <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA] mb-2">
+      <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-fg-muted mb-2">
         {label}
       </span>
       <input
         {...rest}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-graphite-border bg-graphite-card px-4 py-3 text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
+        className="w-full rounded-md border border-border bg-surface px-4 py-3 text-fg outline-none transition focus:border-accent focus:ring-1 focus:ring-accent"
       />
-      {hint && <span className="mt-1.5 block text-xs text-[#5A5A5A]">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-xs text-fg-faint">{hint}</span>}
     </label>
   )
 }
