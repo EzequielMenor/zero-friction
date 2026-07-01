@@ -717,6 +717,35 @@ export default function FinanzasPage() {
     }
   }
 
+  const [toast, setToast] = useState<{ kind: 'ok' | 'error'; message: string } | null>(null)
+
+  const handleDeleteTransaction = async (id: string) => {
+    // Optimistic local update so the row disappears immediately.
+    const previous = data
+    setData((prev) =>
+      prev ? { ...prev, transactions: prev.transactions.filter((t) => t.id !== id) } : prev
+    )
+
+    try {
+      const res = await fetch(`/api/registros/finanzas?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Error al eliminar')
+      setToast({ kind: 'ok', message: 'Transacción eliminada' })
+      // Reload to recompute totals / category distribution.
+      load()
+    } catch (err) {
+      // Rollback on failure
+      if (previous) setData(previous)
+      setToast({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Error desconocido',
+      })
+    } finally {
+      setTimeout(() => setToast(null), 2400)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -788,6 +817,128 @@ export default function FinanzasPage() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Historial de Transacciones */}
+      <TransactionsHistory
+        transactions={data.transactions}
+        onDelete={handleDeleteTransaction}
+      />
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-4 py-2 border text-xs uppercase tracking-wider ${
+            toast.kind === 'ok'
+              ? 'border-[#34D399]/60 text-[#34D399] bg-[#34D399]/10'
+              : 'border-[#F87171]/60 text-[#F87171] bg-[#F87171]/10'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Transactions History ─────────────────────────────────────────────────────
+
+function TransactionsHistory({
+  transactions,
+  onDelete,
+}: {
+  transactions: Transaction[]
+  onDelete: (id: string) => void
+}) {
+  const formatCurrency = (n: number) =>
+    n.toLocaleString('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+
+  return (
+    <div>
+      <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-3">
+        Historial de Transacciones
+      </h2>
+      <div className="border border-graphite-border bg-graphite-card overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-graphite-border">
+              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                Fecha
+              </th>
+              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                Descripción
+              </th>
+              <th className="text-left px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                Categoría
+              </th>
+              <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                Importe
+              </th>
+              <th className="text-right px-4 py-2 text-[10px] uppercase tracking-wider text-[#5A5A5A] font-normal">
+                <span className="sr-only">Acciones</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-[#5A5A5A] text-xs italic">
+                  Sin transacciones en el ciclo actual.
+                </td>
+              </tr>
+            ) : (
+              transactions.map((t) => {
+                const isIncome = t.amount > 0
+                return (
+                  <tr
+                    key={t.id}
+                    className="border-b border-graphite-border last:border-0 hover:bg-[#A68966]/5 transition-colors"
+                  >
+                    <td className="px-4 py-3 text-[#A1A1AA] whitespace-nowrap">
+                      {formatDate(t.date)}
+                    </td>
+                    <td className="px-4 py-3 text-[#E3E2E2] font-serif">
+                      {t.description}
+                    </td>
+                    <td className="px-4 py-3 text-[#A1A1AA]">
+                      {CATEGORY_LABELS[t.category.toUpperCase()] ?? t.category}
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-right font-serif ${
+                        isIncome ? 'text-[#34D399]' : 'text-[#F87171]'
+                      }`}
+                    >
+                      {isIncome ? '+' : '−'}
+                      {formatCurrency(Math.abs(t.amount))}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => onDelete(t.id)}
+                        className="text-[#5A5A5A] hover:text-[#F87171] transition-colors p-1"
+                        title="Eliminar transacción"
+                        aria-label="Eliminar transacción"
+                      >
+                        <TrashIcon size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   )

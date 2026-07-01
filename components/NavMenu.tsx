@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { HUBS } from '@/lib/hubs'
-import { HubIcon, SettingsIcon } from '@/components/icons'
+import { CalendarIcon, HubIcon, SettingsIcon } from '@/components/icons'
 import type { ReactNode } from 'react'
 
 function NavItem({
@@ -76,6 +76,15 @@ export default function NavMenu() {
             isActive={pathname === '/'}
             isDesktop
           />
+          {/* Calendario */}
+          <NavItem
+            href="/calendar"
+            label="Calendario"
+            isActive={pathname === '/calendar'}
+            isDesktop
+          >
+            <CalendarIcon size={16} />
+          </NavItem>
           {/* Hubs */}
           {HUBS.map((hub) => {
             const href = `/hubs/${hub.slug}`
@@ -124,6 +133,15 @@ export default function NavMenu() {
           isActive={pathname === '/'}
           isDesktop={false}
         />
+        {/* Calendario */}
+        <NavItem
+          href="/calendar"
+          label="Calendario"
+          isActive={pathname === '/calendar'}
+          isDesktop={false}
+        >
+          <CalendarIcon size={20} />
+        </NavItem>
         {/* Hubs */}
         {HUBS.map((hub) => {
           const href = `/hubs/${hub.slug}`

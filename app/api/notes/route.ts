@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import type { Note } from '@prisma/client'
+import type { Domain, Note, NoteStatus } from '@prisma/client'
 
 // ─── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -14,6 +14,9 @@ async function getSession(
   return verifySession(token)
 }
 
+const VALID_DOMAINS: Domain[] = ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS']
+const VALID_STATUSES: NoteStatus[] = ['DRAFT', 'NEEDS_REVIEW', 'ACTIVE', 'IN_PROGRESS', 'DONE']
+
 // ─── POST /api/notes ───────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -23,14 +26,66 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
   }
 
-  const body = await req.json().catch(() => null)
-  const text = typeof body?.text === 'string' ? body.text.trim() : ''
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
 
-  if (!text) {
+  // Structured manual creation — title/content/domain/status present.
+  const isStructured =
+    body?.title !== undefined ||
+    body?.content !== undefined ||
+    body?.domain !== undefined
+
+  if (isStructured) {
+    const rawTitle = typeof body?.title === 'string' ? body.title.trim() : ''
+    const rawContent = typeof body?.content === 'string' ? body.content : ''
+    const rawDomain = typeof body?.domain === 'string' ? body.domain : ''
+    const rawStatus = typeof body?.status === 'string' ? body.status : ''
+
+    const title = rawTitle.length > 0 ? rawTitle : 'Sin título'
+    const content = rawContent
+
+    if (!VALID_DOMAINS.includes(rawDomain as Domain)) {
+      return NextResponse.json({ error: 'invalid domain' }, { status: 400 })
+    }
+
+    const domain = rawDomain as Domain
+
+    let status: NoteStatus = 'ACTIVE'
+    if (rawStatus) {
+      if (!VALID_STATUSES.includes(rawStatus as NoteStatus)) {
+        return NextResponse.json({ error: 'invalid status' }, { status: 400 })
+      }
+      status = rawStatus as NoteStatus
+    }
+
+    const note = await prisma.note.create({
+      data: {
+        userId: session.userId,
+        title,
+        content,
+        domain,
+        status,
+        tags: [],
+        suggestedGoals: [],
+      },
+    })
+
     return NextResponse.json(
-      { error: 'text is required' },
-      { status: 400 }
+      {
+        id: note.id,
+        title: note.title,
+        content: note.content,
+        domain: note.domain,
+        status: note.status as Note['status'],
+        createdAt: note.createdAt.toISOString(),
+      },
+      { status: 201 }
     )
+  }
+
+  // Quick GTD capture fallback — body.text is required.
+  const text = typeof body?.text === 'string' ? body.text.trim() : ''
+  if (!text) {
+    return NextResponse.json({ error: 'text is required' }, { status: 400 })
   }
 
   const note = await prisma.note.create({

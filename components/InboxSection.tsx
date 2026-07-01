@@ -145,13 +145,13 @@ export default function InboxSection({
     <section className="mt-8">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase">📥 INBOX</p>
+        <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase">INBOX</p>
         {cards.length >= 1 && (
           <button
             onClick={() => void processAll()}
             className="text-[10px] tracking-wider text-[#A68966] uppercase hover:underline"
           >
-            ✨ Procesar todo
+            Procesar todo
           </button>
         )}
       </div>

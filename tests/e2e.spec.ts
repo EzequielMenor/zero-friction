@@ -225,7 +225,7 @@ test.describe('Zero-Friction E2E Verification', () => {
     // Type and submit capture text
     const captureText = `Test inbox item ${uniqueId}`;
     await page.getByPlaceholder('Escribí o hablá… mañana, importante, 12 de julio').fill(captureText);
-    await page.getByRole('button', { name: 'Capturar nota' }).last().click(); // Send button
+    await page.getByRole('button', { name: 'Enviar' }).click(); // Send button
 
     // Overlay should close (< 300ms)
     await expect(page.getByPlaceholder('Escribí o hablá… mañana, importante, 12 de julio')).not.toBeVisible({ timeout: 500 });

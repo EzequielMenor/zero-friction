@@ -41,6 +41,28 @@ interface StrengthMetrics {
   coachAdvice: string | null
 }
 
+// ─── Trash Icon ────────────────────────────────────────────────────────────────
+
+function TrashIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="3,6 5,6 21,6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  )
+}
+
 // ─── Dumbbell Icon ─────────────────────────────────────────────────────────────
 
 function DumbbellIcon({ size = 24 }: { size?: number }) {
@@ -385,6 +407,7 @@ export default function FuerzaPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedExercise, setSelectedExercise] = useState<string>('')
+  const [toast, setToast] = useState<{ kind: 'ok' | 'error'; message: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -408,6 +431,42 @@ export default function FuerzaPage() {
       setLoading(false)
     }
   }, [selectedExercise])
+
+  const handleDeleteWorkout = async (id: string) => {
+    // Optimistic local update so the workout disappears immediately.
+    const previous = metrics
+    setMetrics((prev) =>
+      prev
+        ? {
+            ...prev,
+            workouts: prev.workouts.filter((w) => w.id !== id),
+            volumeHistory: prev.volumeHistory.filter((v) => {
+              const removed = prev.workouts.find((w) => w.id === id)
+              return removed ? !v.date.startsWith(removed.date.substring(0, 10)) : true
+            }),
+          }
+        : prev
+    )
+
+    try {
+      const res = await fetch(`/api/registros/fuerza?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Error al eliminar')
+      setToast({ kind: 'ok', message: 'Entrenamiento eliminado' })
+      // Reload to recompute PRs / volume history accurately.
+      load()
+    } catch (err) {
+      // Rollback on failure
+      if (previous) setMetrics(previous)
+      setToast({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Error desconocido',
+      })
+    } finally {
+      setTimeout(() => setToast(null), 2400)
+    }
+  }
 
   useEffect(() => {
     load()
@@ -554,6 +613,133 @@ export default function FuerzaPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Historial de Entrenamientos */}
+      <WorkoutsHistory
+        workouts={metrics.workouts}
+        onDelete={handleDeleteWorkout}
+      />
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 px-4 py-2 border text-xs uppercase tracking-wider ${
+            toast.kind === 'ok'
+              ? 'border-[#34D399]/60 text-[#34D399] bg-[#34D399]/10'
+              : 'border-[#F87171]/60 text-[#F87171] bg-[#F87171]/10'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Workouts History ─────────────────────────────────────────────────────────
+
+function WorkoutsHistory({
+  workouts,
+  onDelete,
+}: {
+  workouts: WorkoutData[]
+  onDelete: (id: string) => void
+}) {
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+
+  // Newest first
+  const ordered = [...workouts].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  )
+
+  return (
+    <div>
+      <h2 className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mb-3">
+        Historial de Entrenamientos
+      </h2>
+      <div className="space-y-3">
+        {ordered.length === 0 ? (
+          <div className="border border-graphite-border bg-graphite-card px-4 py-6 text-center text-[#5A5A5A] text-xs italic">
+            Sin entrenamientos registrados.
+          </div>
+        ) : (
+          ordered.map((w) => {
+            // Group sets by exercise for cleaner display
+            const byExercise = new Map<string, SetData[]>()
+            for (const s of w.sets) {
+              const arr = byExercise.get(s.exerciseName) ?? []
+              arr.push(s)
+              byExercise.set(s.exerciseName, arr)
+            }
+
+            return (
+              <div
+                key={w.id}
+                className="border border-graphite-border bg-graphite-card p-5"
+              >
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="min-w-0">
+                    <h3 className="font-serif text-lg text-[#E3E2E2] truncate">
+                      {w.title}
+                    </h3>
+                    <p className="text-[10px] uppercase tracking-[0.15em] text-[#5A5A5A] mt-1 flex items-center gap-3">
+                      <span>{formatDate(w.date)}</span>
+                      {w.duration && <span>· {w.duration}</span>}
+                      <span>· {w.sets.length} sets</span>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onDelete(w.id)}
+                    className="flex-shrink-0 text-[#5A5A5A] hover:text-[#F87171] transition-colors p-1"
+                    title="Eliminar entrenamiento"
+                    aria-label="Eliminar entrenamiento"
+                  >
+                    <TrashIcon size={14} />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {Array.from(byExercise.entries()).map(([exerciseName, sets]) => (
+                    <div key={exerciseName}>
+                      <p className="text-[11px] uppercase tracking-wider text-[#A68966] mb-1">
+                        {exerciseName}
+                      </p>
+                      <ul className="space-y-0.5">
+                        {sets.map((s, i) => (
+                          <li
+                            key={i}
+                            className="text-xs text-[#A1A1AA] flex items-center justify-between gap-3"
+                          >
+                            <span className="text-[#5A5A5A] w-12">
+                              Set {i + 1}
+                              {s.setType === 'WARMUP_SET' && ' · warmup'}
+                              {s.setType === 'FAILURE_SET' && ' · failure'}
+                              {s.setType === 'DROPSET_SET' && ' · dropset'}
+                            </span>
+                            <span className="flex-1 truncate">
+                              {s.weight} kg × {s.reps} reps
+                            </span>
+                            {s.estimated1RM != null && (
+                              <span className="text-[#A68966] w-20 text-right">
+                                1RM est. {s.estimated1RM.toFixed(1)}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )
