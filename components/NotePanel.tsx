@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { HubIcon } from '@/components/icons'
 import { domainMeta } from '@/lib/hubs'
+import { isTask } from '@/lib/notes'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -143,7 +144,8 @@ export function NotePanel({
 
   async function handleDelete() {
     if (!note) return
-    if (!window.confirm('¿Estás seguro de que querés eliminar esta nota? Esta acción no se puede deshacer.')) return
+    const entity = isTask(note) ? 'esta tarea' : 'esta nota'
+    if (!window.confirm(`¿Estás seguro de que querés eliminar ${entity}? Esta acción no se puede deshacer.`)) return
 
     setSaving(true)
     setError(null)
@@ -273,7 +275,7 @@ export function NotePanel({
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder={domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Nombre de la tarea' : 'Título de la nota'}
+                    placeholder="Título (opcional)"
                     className="w-full bg-surface border border-border text-fg font-serif text-2xl leading-snug px-2 py-1 focus:outline-none focus:border-accent/50"
                   />
                   <div className="mt-2">
@@ -292,7 +294,7 @@ export function NotePanel({
                       <option value="PROYECTOS">Proyectos</option>
                     </select>
                   </div>
-                  {(domain === 'PROYECTOS' || domain === 'PERSONAL') && (
+                  {isTask({ dueDate, isImportant, status }) && (
                     <>
                       <div className="mt-2">
                         <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
@@ -387,7 +389,7 @@ export function NotePanel({
                   disabled={saving}
                   className="w-full border border-red-500/40 text-red-400 text-xs uppercase tracking-wider py-2 hover:border-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
                 >
-                  Eliminar Nota
+                  Eliminar {isTask(note as NoteItem) ? 'Tarea' : 'Nota'}
                 </button>
               )}
             </div>
@@ -460,12 +462,12 @@ export function NotePanel({
             <>
               <div className="mt-4">
                 <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
-                  {domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Descripción' : 'Contenido'}
+                  Contenido
                 </label>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder={domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Escribí la descripción o sub-tareas…' : 'Escribí el contenido de la nota…'}
+                  placeholder="Escribí el contenido…"
                   className="w-full h-48 bg-surface border border-border text-fg-muted text-sm font-sans leading-relaxed px-3 py-2 focus:outline-none focus:border-accent/50 placeholder-fg-faint"
                 />
               </div>
