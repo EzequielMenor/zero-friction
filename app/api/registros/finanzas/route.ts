@@ -105,7 +105,7 @@ export async function GET(): Promise<NextResponse> {
 
   const totalInitialBalance = accountOutputs.reduce((sum, a) => sum + a.initialBalance, 0)
 
-  const netBalance = totalInitialBalance + totalIncome - totalExpenses
+  const netBalance = accountOutputs.reduce((sum, a) => sum + a.currentBalance, 0)
 
   // Category distribution
   const categoryDistribution: CategoryDistribution[] = Object.entries(expensesByCategory).map(
