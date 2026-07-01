@@ -163,7 +163,7 @@ export default function HubContent({ slug }: { slug: string }) {
           {hub && <HubIcon icon={hub.icon} size={48} />}
           <h1 className="font-serif text-4xl text-fg">{hub?.label}</h1>
         </div>
-        <div className="h-px bg-gradient-to-r from-accent/60 via-[#A68966]/20 to-transparent mt-4 mb-3" />
+        <div className="h-px bg-gradient-to-r from-accent/60 via-accent/20 to-transparent mt-4 mb-3" />
         <p className="text-[11px] tracking-[0.15em] uppercase text-fg-faint">
           {filteredNotes.length === 0
             ? 'Sin notas'
