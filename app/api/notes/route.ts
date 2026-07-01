@@ -57,6 +57,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       status = rawStatus as NoteStatus
     }
 
+    let dueDate: Date | null = null
+    if (body?.dueDate) {
+      const parsed = new Date(body.dueDate as string)
+      if (!isNaN(parsed.getTime())) {
+        dueDate = parsed
+      }
+    }
+
     const note = await prisma.note.create({
       data: {
         userId: session.userId,
@@ -64,6 +72,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         content,
         domain,
         status,
+        dueDate,
         tags: [],
         suggestedGoals: [],
       },

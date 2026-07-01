@@ -207,7 +207,13 @@ export default function CalendarPage() {
 
   function handleCellClick(cell: GridCell) {
     setCreatingDate(cell.date)
-    setCreatingDraft({ title: '', content: '', domain: 'PERSONAL', status: 'ACTIVE' })
+    setCreatingDraft({
+      title: '',
+      content: '',
+      domain: 'PERSONAL',
+      status: 'ACTIVE',
+      dueDate: cell.ymd,
+    })
   }
 
   function handleTaskClick(task: NoteItem, e: React.SyntheticEvent) {

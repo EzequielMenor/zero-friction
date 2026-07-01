@@ -27,6 +27,14 @@ export interface NoteDraft {
   content: string
   domain: NoteDomain
   status: NoteStatus
+  dueDate?: string | null
+}
+
+function formatInputDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  return d.toISOString().split('T')[0]
 }
 
 interface NotePanelProps {
@@ -134,6 +142,7 @@ export function NotePanel({
   const [content, setContent] = useState(draft?.content ?? note?.content ?? '')
   const [domain, setDomain] = useState<NoteDomain>(draft?.domain ?? note?.domain ?? 'PERSONAL')
   const [status, setStatus] = useState<NoteStatus>(draft?.status ?? note?.status ?? 'ACTIVE')
+  const [dueDate, setDueDate] = useState<string>(formatInputDate(draft?.dueDate ?? note?.dueDate))
   const [isEditing, setIsEditing] = useState(isCreateMode)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -183,6 +192,7 @@ export function NotePanel({
             content,
             domain,
             status,
+            dueDate: dueDate ? new Date(dueDate).toISOString() : null,
           }),
         })
         if (!res.ok) {
@@ -204,6 +214,7 @@ export function NotePanel({
           content,
           domain,
           status,
+          dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         }),
       })
       if (!res.ok) {
@@ -216,6 +227,7 @@ export function NotePanel({
       setContent(updated.content)
       setDomain(updated.domain)
       setStatus(updated.status)
+      setDueDate(formatInputDate(updated.dueDate))
       setIsEditing(false)
       onUpdate?.(updated)
     } catch (err) {
@@ -235,6 +247,7 @@ export function NotePanel({
     setContent(note.content)
     setDomain(note.domain)
     setStatus(note.status)
+    setDueDate(formatInputDate(note.dueDate))
     setIsEditing(false)
     setError(null)
   }
@@ -278,21 +291,34 @@ export function NotePanel({
                     </select>
                   </div>
                   {(domain === 'PROYECTOS' || domain === 'PERSONAL') && (
-                    <div className="mt-2">
-                      <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
-                        Estado
-                      </label>
-                      <select
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value as NoteStatus)}
-                        className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
-                      >
-                        <option value="ACTIVE">Activa</option>
-                        <option value="IN_PROGRESS">En curso</option>
-                        <option value="DONE">Hecha</option>
-                        <option value="NEEDS_REVIEW">Revisión</option>
-                      </select>
-                    </div>
+                    <>
+                      <div className="mt-2">
+                        <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                          Estado
+                        </label>
+                        <select
+                          value={status}
+                          onChange={(e) => setStatus(e.target.value as NoteStatus)}
+                          className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                        >
+                          <option value="ACTIVE">Activa</option>
+                          <option value="IN_PROGRESS">En curso</option>
+                          <option value="DONE">Hecha</option>
+                          <option value="NEEDS_REVIEW">Revisión</option>
+                        </select>
+                      </div>
+                      <div className="mt-2">
+                        <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                          Fecha Límite (Opcional)
+                        </label>
+                        <input
+                          type="date"
+                          value={dueDate}
+                          onChange={(e) => setDueDate(e.target.value)}
+                          className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                        />
+                      </div>
+                    </>
                   )}
                 </>
               ) : (
