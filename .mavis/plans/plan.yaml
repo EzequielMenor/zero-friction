@@ -1,0 +1,212 @@
+version: 1
+plan:
+  name: 'Phase 7: Página de Calendario y planificación de tareas'
+  max_concurrency: 2
+  max_consecutive_failures: 2
+  max_cycles: 6
+  auto_reject_retries: 1
+  verifier_config:
+    default_verifiers: [verifier]
+    audit_sample_rate: 0.0
+tasks:
+  - id: 'calendar-impl'
+    title: 'Implementar página de Calendario (API + NavMenu + cuadrícula mensual + backlog)'
+    prompt: |
+      Implementa la Fase 7 de Zero-Friction — la página de Calendario y planificación de tareas.
+
+      ## Contexto
+
+      Repo: /Users/ezequielmenor/Proyectos/zero-friction
+      Stack: Next.js 16.2.9 (App Router), React 19, Prisma + PostgreSQL, jose para JWT cookies, Tailwind v4, vanilla CSS. Estética Apple Bespoke con paleta graphite (#0B0B0C fondo, #121214 tarjetas, #1C1C1F bordes, #A68966 acento bronze).
+
+      Lee estos archivos ANTES de escribir nada para entender los patrones existentes:
+      - `app/api/notes/route.ts` y `app/api/today/route.ts` — auth con `cookies()` + `verifySession` (la API es async-await, devuelve 401 con `{ error: 'unauthenticated' }`).
+      - `app/api/notes/[id]/route.ts` — PATCH acepta `dueDate` (string ISO o `null`), `isImportant`, `status`, `title`, `content`, `domain`.
+      - `app/api/hubs/[domain]/route.ts` — ejemplo de ruta de API que devuelve JSON y pone `Cache-Control: no-store`.
+      - `components/NotePanel.tsx` — props: `note` (view/edit) o `draft` (create); callbacks `onUpdate(saved)`, `onCreated(saved)`, `onDelete(id)`. Importante: el callback `onCreated` recibe la nota creada del backend, así que puedes patchear `dueDate` justo después.
+      - `app/(app)/hubs/[domain]/HubContent.tsx` — patrón de página cliente con fetch, estados `selectedNote` / `creating`, recarga vía callback.
+      - `app/(app)/layout.tsx` — wrapper con `max-w-[720px] mx-auto` (la página de calendario puede saltarse ese ancho localmente con `max-w-none` dentro de su propio contenedor, no modifiques el layout compartido).
+      - `components/NavMenu.tsx` y `components/icons.tsx` — `CalendarIcon` YA EXISTE exportado en icons.tsx. El componente `NavItem` acepta `children` cuando se le quiere pasar un icono custom que no sea el `HubIcon`.
+      - `lib/hubs.ts` y `lib/prisma.ts` — la tabla `Note` tiene `domain: Domain`, `dueDate: DateTime?`, `status: NoteStatus` (DRAFT / NEEDS_REVIEW / ACTIVE / IN_PROGRESS / DONE).
+      - `app/globals.css` — variables de tema: `--color-graphite`, `--color-graphite-card`, `--color-graphite-border`.
+
+      Next.js 16 usa `params: Promise<...>` en rutas dinámicas; `cookies()` es async (`await cookies()`). Si dudas, revisa `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route.md`.
+
+      ## Entregables
+
+      ### 1. Nueva ruta API: `app/api/calendar/route.ts`
+
+      - Solo `GET`.
+      - Autenticación con `cookies()` + `verifySession(AUTH_COOKIE)`. Devuelve `401` con `{ error: 'unauthenticated' }` si falla.
+      - `prisma.note.findMany({ where: { userId: session.userId } })` — sin filtros de status / domain / fecha. La página cliente se encarga de bucketear.
+      - `select`: `id, title, content, status, isImportant, dueDate, createdAt, updatedAt, domain, tags`.
+      - Devuelve el array JSON directamente, con `Cache-Control: no-store`.
+
+      ### 2. Integración NavMenu: `components/NavMenu.tsx`
+
+      - Importa `CalendarIcon` desde `@/components/icons` (ya existe, agrégalo al import que ya trae `HubIcon, SettingsIcon`).
+      - En el bloque Desktop Sidebar (el `nav` con `md:flex`), añade un `<NavItem>` nuevo con `href="/calendar"`, `label="Calendario"`, e `isActive={pathname === '/calendar'}`, `isDesktop`. Pásale el icono como children: `<CalendarIcon size={16} />`. Ubícalo INMEDIATAMENTE DESPUÉS del `<NavItem>` de "Today" y ANTES de los hubs.
+      - En el bloque Mobile Bottom Bar (el `nav` con `md:hidden`), haz el mismo cambio con `<CalendarIcon size={20} />` en el mismo orden relativo.
+
+      ### 3. Página de Calendario: `app/(app)/calendar/page.tsx`
+
+      Un único archivo client component (no hace falta wrapper server). `'use client'` arriba.
+
+      Contenido obligatorio:
+
+      #### Cabecera del mes
+      - Título "Calendario" + mes/año localizado, ej. "Julio de 2026". Usa `new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' })` y capitaliza la primera letra.
+      - Controles: botón "‹" (mes anterior), botón "Hoy" (vuelve al mes actual), botón "›" (mes siguiente). Mantén el estilo de botones uppercase tracking-wider que usa el resto del proyecto (border-graphite-border, hover border-[#A68966]/40, text-[#A1A1AA]).
+
+      #### Cuadrícula
+      - 7 columnas con días en español en este orden: Lunes, Martes, Miércoles, Jueves, Viernes, Sábado, Domingo.
+      - Calcula la cuadrícula (6 filas × 7 columnas):
+        - `firstOfMonth = new Date(year, monthIdx, 1)`.
+        - `offset = (firstOfMonth.getDay() + 6) % 7` (para que lunes = 0, domingo = 6).
+        - `gridStart = new Date(firstOfMonth); gridStart.setDate(gridStart.getDate() - offset)`.
+        - Genera 42 celdas incrementando día a día.
+        - Marca cada celda con `inMonth` (true si su mes === monthIdx) y `isToday` (compara YYYY-MM-DD con hoy).
+        - Las celdas `!inMonth` se renderizan con opacidad reducida (`opacity-30` o similar).
+        - La celda `isToday` lleva un anillo o fondo distintivo (ej. `border-[#A68966]/60` o `bg-[#A68966]/5`).
+      - Cada celda muestra el número de día arriba a la izquierda y debajo hasta 3 task tags, con un `+N` si hay más.
+
+      #### Day cells — tareas
+      - Una tarea cuenta para el día X si su `dueDate` matchea el YYYY-MM-DD de la celda. Compara strings YYYY-MM-DD (slice del ISO o `toISOString().slice(0,10)`) — evita drift por timezone.
+      - Renderiza cada tarea como una tag/chip pequeño con un punto o borde izquierdo coloreado según su `domain`:
+        - ESPIRITUAL → Bronze `#A68966`
+        - PERSONAL → Silver `#8E8E93`
+        - APRENDIZAJE → Blue `#5B7FBF`
+        - PROYECTOS → Green `#6B8E5A`
+        - REGISTROS → Gold `#C9A961`
+        Define el mapa en el mismo archivo (no hace falta centralizarlo todavía — los iconos están en `lib/hubs.ts` pero los colores son locales a la página de calendario por ahora). Los colores deben verse sobrios, no neón.
+      - Texto de la tag: título truncado a unos 30 caracteres.
+      - Click en una tarea → `setSelectedNote(task)` y abrir `<NotePanel note={selectedNote} ... />`.
+      - Click en el área vacía de la celda → `setCreatingDate(cellDate)` y abrir `<NotePanel draft={...} ... />` con un draft que pre-rellene `domain: 'PERSONAL'` por defecto y `status: 'ACTIVE'`. La fecha pre-rellenada se aplica DESPUÉS del create vía PATCH (ver sección "Wiring").
+
+      #### Bandeja de Tareas (Backlog) — sidebar
+      - En `md+` screens: sidebar derecho (sticky), ancho razonable (ej. 280-320px), al lado de la cuadrícula.
+      - En mobile: apilado debajo de la cuadrícula.
+      - Título: "Tareas sin Fecha" con un contador.
+      - Filtro: `notes.filter(n => n.dueDate === null && n.status !== 'DONE')`.
+      - Render: tarjeta compacta con título (truncado), un dot del color del dominio, y un badge pequeño de status si `IN_PROGRESS`.
+      - Click → abre `NotePanel` en modo view/edit para que el usuario pueda asignar `dueDate`.
+
+      #### Layout de la página
+      - El layout compartido `app/(app)/layout.tsx` impone `max-w-[720px]`. Para el calendario necesitas más ancho en desktop.
+      - Solución: dentro de `page.tsx`, envuelve el contenido en un contenedor local con `max-w-none md:max-w-[1100px] mx-auto` y `w-full`, o usa grid `md:grid-cols-[1fr_300px]` para cuadrícula + sidebar. NO modifiques `app/(app)/layout.tsx`.
+      - En mobile: layout de una columna (cuadrícula arriba, sidebar abajo), respeta el padding del layout padre.
+
+      #### Wiring (recarga tras mutaciones)
+      - Función única `load()`: `fetch('/api/calendar')` → `setNotes(json)`. Llama en `useEffect` al montar.
+      - `<NotePanel note={selectedNote} onUpdate={() => load()} onDelete={() => { setSelectedNote(null); load() }} />`.
+      - `<NotePanel draft={creatingDraft} onCreated={(saved) => patchDueDateAndReload(saved, creatingDate)} />` — el `onCreated` recibe la nota creada. Si había `creatingDate` pre-rellenada, ejecuta `await fetch('/api/notes/<id>', { method: 'PATCH', body: JSON.stringify({ dueDate: creatingDate.toISOString() }) })` y luego `load()`. Cierra el panel al final. Maneja el error con un toast o mensaje de error discreto; si el PATCH falla, la nota igual se queda creada (sin fecha) y el panel se cierra.
+      - Carga de nuevo siempre después de cada mutación exitosa.
+
+      #### Estilo
+      - Paleta graphite consistente con el resto del proyecto.
+      - Tipografía serif para el título del mes (`font-serif text-3xl` o `text-4xl`), sans-serif para el resto.
+      - Estados vacíos discretos: si no hay tareas en el mes, "No hay tareas este mes." en `text-[#5A5A5A] italic`. Si el backlog está vacío, "Todo al día. No quedan tareas sin fecha.".
+
+      ## Cosas que NO debes hacer
+
+      - No instales date-fns, dayjs, moment ni react-big-calendar. Solo `Date` nativo + `Intl.DateTimeFormat`.
+      - No modifiques `components/NotePanel.tsx` (usa el flujo `onCreated` + PATCH).
+      - No modifiques `app/(app)/layout.tsx`. Usa un wrapper local en la página.
+      - No añadas nuevos componentes compartidos. Inline SVGs y helpers locales están bien.
+      - No rompas la página "Today", los hubs, ni ninguna ruta existente. Tu único cambio en `components/NavMenu.tsx` es añadir el nuevo `<NavItem>`; deja todo lo demás intacto.
+      - No añadas nuevas dependencias al `package.json`.
+      - No crees tests automatizados (no se pidieron; la verificación es por typecheck + revisión estructural).
+
+      ## Verificación (correlo antes de reportar)
+
+      1. `cd /Users/ezequielmenor/Proyectos/zero-friction && pnpm tsc --noEmit` — debe pasar sin errores. Pega el resultado en el report (éxito o primeras 30 líneas de error).
+      2. Confirma que estos archivos existen y están bien:
+         - `app/api/calendar/route.ts` exporta `GET`.
+         - `app/(app)/calendar/page.tsx` tiene `'use client'`, exporta default, importa `NotePanel`, renderiza DOS `NotePanel` (uno con `note`, otro con `draft`) y el sidebar de backlog.
+         - `components/NavMenu.tsx` importa `CalendarIcon` y tiene un `<NavItem href="/calendar" ...>` tanto en desktop como en mobile, después del "Today".
+      3. Ejecuta `pnpm lint` y reporta si pasa (puede haber warnings pre-existentes — está bien si solo son warnings, no errores).
+
+      ## Reporte final
+
+      Reporta:
+      - Lista de archivos creados / modificados con paths absolutos.
+      - Output de `pnpm tsc --noEmit` (ok o error).
+      - Output de `pnpm lint` (ok, o lista de issues si los hay).
+      - 1-2 frases describiendo cualquier tradeoff (especialmente el flujo create-con-fecha pre-rellenada).
+      - Si necesitas cambiar el comportamiento del `NotePanel` para soportar `dueDate` pre-rellenado, NO lo hagas — usa el patrón PACH-after-create descrito arriba. Si encuentras un bloqueador real, repórtalo.
+    assigned_to: 'coder'
+    verified_by: 'verifier'
+    verify_prompt: |
+      Estás verificando la Fase 7 de Zero-Friction — la página de Calendario.
+      Repo: /Users/ezequielmenor/Proyectos/zero-friction.
+
+      Ejecuta los siguientes chequeos y reporta PASS / FAIL en cada uno con una línea de evidencia (ruta + línea o output).
+
+      ## 1. Typecheck
+      Corre `cd /Users/ezequielmenor/Proyectos/zero-friction && pnpm tsc --noEmit`. Debe exit 0. Si falla, pega las primeras 30 líneas de error.
+
+      ## 2. Ruta API — `app/api/calendar/route.ts`
+      - El archivo existe.
+      - Exporta un async `GET`.
+      - Llama a `cookies()` (await) y `verifySession` con `AUTH_COOKIE`. Devuelve 401 con `{ error: 'unauthenticated' }` si falla.
+      - Llama a `prisma.note.findMany` con `where: { userId: session.userId }`.
+      - `select` incluye exactamente: `id, title, content, status, isImportant, dueDate, createdAt, updatedAt, domain, tags`.
+      - Devuelve el array JSON sin envoltura.
+      - Header `Cache-Control: no-store` presente.
+
+      ## 3. NavMenu — `components/NavMenu.tsx`
+      - Importa `CalendarIcon` desde `@/components/icons`.
+      - En el bloque Desktop Sidebar (`md:flex` nav), hay un `<NavItem href="/calendar" label="Calendario" isActive={pathname === '/calendar'} isDesktop>` con `children={<CalendarIcon size={16} />}` o similar, posicionado DESPUÉS del `<NavItem>` de "Today" y ANTES de los hubs.
+      - En el bloque Mobile Bottom Bar (`md:hidden` nav), hay un `<NavItem>` equivalente con `size={20}`, en el mismo orden relativo.
+      - "Today" sigue intacto (no fue removido ni movido).
+
+      ## 4. Estructura de la página de Calendario — `app/(app)/calendar/page.tsx`
+      - Existe.
+      - `'use client'` arriba.
+      - Default export es el componente de la página.
+      - Importa `NotePanel` desde `@/components/NotePanel`.
+      - Renderiza DOS `NotePanel` condicionales: uno con prop `note={selectedNote}` (view/edit) y otro con prop `draft={...}` (create).
+      - Renderiza un sidebar "Tareas sin Fecha" / "Bandeja" que lista notas con `dueDate === null && status !== 'DONE'`.
+      - Renderiza una cuadrícula de 7 columnas con cabeceras en español: Lunes, Martes, Miércoles, Jueves, Viernes, Sábado, Domingo.
+      - Incluye un botón "Hoy" que resetea el mes visible al actual.
+      - Incluye botones prev/next de mes.
+
+      ## 5. Mapa de colores de dominio
+      - La página define un mapa de colores por dominio.
+      - ESPIRITUAL → `#A68966` (bronze).
+      - Los otros 4 dominios tienen colores distintos y sobrios.
+      - Las tags en la cuadrícula usan ese mapa (borde izquierdo, dot, o tinte).
+
+      ## 6. Lógica de fechas
+      - Las celdas incluyen días leading del mes anterior y trailing del mes siguiente, con un flag `inMonth` u opuesto.
+      - La celda "hoy" tiene un highlight visible.
+      - Una nota con `dueDate` en día X se renderiza en la celda X (comparación por YYYY-MM-DD, no por timestamp completo).
+      - El sidebar de backlog muestra notas con `dueDate === null && status !== 'DONE'`.
+
+      ## 7. Wiring
+      - `onUpdate`, `onCreated`, `onDelete` en los `NotePanel` disparan un reload de `/api/calendar`.
+      - Click en una tarea de la cuadrícula abre el panel view/edit.
+      - Click en área vacía de una celda abre el panel create con la fecha de esa celda pre-rellenada (aunque el patch de `dueDate` se haga en un segundo round-trip con PATCH).
+      - La función `load()` (o equivalente) existe y se llama al montar.
+
+      ## 8. Responsive
+      - En desktop la sidebar está al lado de la cuadrícula (grid de 2 columnas en md+).
+      - En mobile la sidebar se apila debajo.
+      - La cuadrícula no está limitada a `max-w-[720px]` (la página usa su propio `max-w-none` o grid de 2 columnas para escapar el layout padre). Si el grid está constreñido a 720px, FAIL.
+      - No hay patrones obviously broken en mobile (tap targets < 32px, overflow horizontal, texto cortado).
+
+      ## 9. Regresión
+      - El componente `NavMenu` mantiene TODOS los items previos: Today, Espiritual, Personal, Aprendizaje, Proyectos, Registros, Mente, Ajustes. El nuevo "Calendario" se añade sin eliminar nada.
+      - `app/(app)/page.tsx` (Today) sigue compilando.
+      - `app/(app)/hubs/[domain]/*` sigue compilando.
+      - `app/(app)/layout.tsx` no fue modificado.
+
+      ## 10. Lint
+      Corre `pnpm lint`. Si hay errores nuevos introducidos por este cambio, FAIL y lista los errores. Warnings pre-existentes están OK.
+
+      ## Veredicto
+
+      Termina con uno de:
+      - **VERDICT: PASS** — todos los chequeos pasaron.
+      - **VERDICT: FAIL** — lista los chequeos que fallaron con el detalle concreto que el producer necesita para corregir (archivo, línea, qué esperaba vs qué encontró).
+    max_retries: 2

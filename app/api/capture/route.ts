@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { verifySession, AUTH_COOKIE } from '@/lib/auth'
 import { getWhisperForUser } from '@/lib/llm'
-import type { ParsedCapture } from '@/lib/parse-capture'
 import {
   runCaptureChatCompletion,
   createNoteWithRelations,
+  createTransactionFromParsed,
+  createOrToggleHabitLogFromParsed,
+  createWorkoutFromParsed,
+  type ParsedCapture,
 } from '@/lib/parse-capture'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -30,75 +32,6 @@ async function transcribeAudio(file: File, userId: string): Promise<string> {
   })
 
   return transcription.text.trim()
-}
-
-// ─── REGISTROS Branch Helpers ─────────────────────────────────────────────────
-// These handle REGISTROS-specific record types and stay inline per the design
-// (RecordType branching deferred to a follow-up; design decision D8).
-
-async function saveTransaction(
-  userId: string,
-  parsed: ParsedCapture
-): Promise<{ id: string }> {
-  const transaction = await prisma.transaction.create({
-    data: {
-      userId,
-      amount: parsed.metadata.recordData.value ?? 0,
-      description:
-        parsed.metadata.recordData.name ?? parsed.cleanedTitle,
-      date: new Date(),
-      category: parsed.metadata.recordData.category ?? 'VARIOS',
-    },
-  })
-  return { id: transaction.id }
-}
-
-async function saveHabitLog(
-  userId: string,
-  parsed: ParsedCapture
-): Promise<{ id: string }> {
-  const habitName = parsed.metadata.recordData.name ?? parsed.cleanedTitle
-
-  let habit = await prisma.habit.findFirst({
-    where: { userId, name: { equals: habitName } },
-  })
-
-  if (!habit) {
-    habit = await prisma.habit.create({
-      data: {
-        userId,
-        name: habitName,
-        frequency: 'daily',
-      },
-    })
-  }
-
-  const log = await prisma.habitLog.create({
-    data: {
-      habitId: habit.id,
-      date: new Date(),
-      completed: true,
-    },
-  })
-
-  return { id: log.id }
-}
-
-async function saveWorkoutDraft(
-  userId: string,
-  parsed: ParsedCapture
-): Promise<{ id: string }> {
-  const note = await prisma.note.create({
-    data: {
-      userId,
-      title: `[GIMNASIO] ${parsed.cleanedTitle}`,
-      content: parsed.cleanedContent,
-      domain: 'REGISTROS',
-      status: 'DRAFT',
-      isImportant: parsed.metadata.isImportant,
-    },
-  })
-  return { id: note.id }
 }
 
 // ─── Main Handler ─────────────────────────────────────────────────────────────
@@ -173,11 +106,11 @@ export async function POST(req: NextRequest) {
     const recordType = parsed.metadata.recordType
 
     if (recordType === 'finanzas') {
-      entity = await saveTransaction(userId, parsed)
+      entity = await createTransactionFromParsed(userId, parsed)
     } else if (recordType === 'habito') {
-      entity = await saveHabitLog(userId, parsed)
+      entity = await createOrToggleHabitLogFromParsed(userId, parsed)
     } else if (recordType === 'gimnasio') {
-      entity = await saveWorkoutDraft(userId, parsed)
+      entity = await createWorkoutFromParsed(userId, parsed)
     } else {
       // recordType is null or unrecognized — store as Note
       entity = await createNoteWithRelations(userId, parsed)

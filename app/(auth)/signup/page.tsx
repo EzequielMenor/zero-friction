@@ -24,13 +24,13 @@ export default function SignupPage() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error ?? 'signup failed')
+        setError(data.error ?? 'No se pudo crear la cuenta')
         return
       }
       router.replace('/')
       router.refresh()
     } catch {
-      setError('network error')
+      setError('Error de red')
     } finally {
       setLoading(false)
     }
@@ -39,9 +39,9 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <h1 className="font-serif text-3xl text-[#E3E2E2] mb-2">Request access</h1>
+        <h1 className="font-serif text-3xl text-[#E3E2E2] mb-2">Solicitar acceso</h1>
         <p className="text-sm text-[#A1A1AA] mb-10">
-          Zero-Friction is private. Enter your invite code to create an account.
+          Zero-Friction es privado. Ingresá tu código de invitación para crear una cuenta.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -54,7 +54,8 @@ export default function SignupPage() {
             required
           />
           <Field
-            label="Password"
+            label="Contraseña"
+            hint="Mínimo 8 caracteres"
             type="password"
             autoComplete="new-password"
             value={password}
@@ -63,7 +64,7 @@ export default function SignupPage() {
             minLength={8}
           />
           <Field
-            label="Invite code"
+            label="Código de invitación"
             type="text"
             autoComplete="off"
             value={secretCode}
@@ -78,14 +79,14 @@ export default function SignupPage() {
             disabled={loading}
             className="w-full rounded-full bg-[#A68966] px-5 py-3 text-sm font-semibold tracking-wide text-black transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? 'Creating account…' : 'Create account'}
+            {loading ? 'Creando cuenta…' : 'Crear cuenta'}
           </button>
         </form>
 
         <p className="mt-10 text-center text-sm text-[#A1A1AA]">
-          Already have an account?{' '}
+          ¿Ya tenés cuenta?{' '}
           <a href="/login" className="text-[#A68966] hover:underline">
-            Sign in
+            Ingresar
           </a>
         </p>
       </div>
@@ -95,11 +96,12 @@ export default function SignupPage() {
 
 type FieldProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> & {
   label: string
+  hint?: string
   value: string
   onChange: (v: string) => void
 }
 
-function Field({ label, value, onChange, ...rest }: FieldProps) {
+function Field({ label, hint, value, onChange, ...rest }: FieldProps) {
   return (
     <label className="block">
       <span className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA] mb-2">
@@ -111,6 +113,7 @@ function Field({ label, value, onChange, ...rest }: FieldProps) {
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-graphite-border bg-graphite-card px-4 py-3 text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
       />
+      {hint && <span className="mt-1.5 block text-xs text-[#5A5A5A]">{hint}</span>}
     </label>
   )
 }

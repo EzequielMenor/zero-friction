@@ -48,14 +48,8 @@ async function getUserId(): Promise<string | null> {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const EPLY_COEFF = 1 + 1 / 30 // Epley: weight * (1 + reps/30)
-
 function estimated1RM(weight: number, reps: number): number {
-  return weight * EPLY_COEFF ** reps
-  // Epley: weight * (1 + reps/30)
-  // Using compound formula: weight * (1 + reps/30)
-  // But this gives 100*(1+5/30) = 116.67 for 100kg x 5 reps
-  // The spec says: weight * (1 + reps / 30)
+  // Epley formula: weight * (1 + reps/30)
   return weight * (1 + reps / 30)
 }
 

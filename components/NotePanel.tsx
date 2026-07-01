@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { HubIcon } from '@/components/icons'
+import { domainMeta } from '@/lib/hubs'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -74,17 +75,6 @@ function statusBadge(status: NoteStatus): string {
     DONE: 'Hecha',
   }
   return map[status] ?? status
-}
-
-function domainMeta(domain: string): { icon: string; label: string } | null {
-  const map: Record<string, { icon: string; label: string }> = {
-    ESPIRITUAL: { icon: 'espiritual', label: 'Espiritual' },
-    PERSONAL: { icon: 'personal', label: 'Personal' },
-    APRENDIZAJE: { icon: 'aprendizaje', label: 'Aprendizaje' },
-    PROYECTOS: { icon: 'proyectos', label: 'Proyectos' },
-    REGISTROS: { icon: 'registros', label: 'Registros' },
-  }
-  return map[domain] ?? null
 }
 
 // ─── Suggested Goal Button ─────────────────────────────────────────────────────
@@ -499,18 +489,6 @@ export function NotePanel({
         </div>
       </div>
     </div>
-      <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes scale-in {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        .animate-fade-in { animation: fade-in 150ms ease-out forwards }
-        .animate-scale-in { animation: scale-in 150ms ease-out forwards }
-      `}</style>
     </>
   )
 }

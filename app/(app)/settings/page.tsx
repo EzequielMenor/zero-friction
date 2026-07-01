@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Toast } from '@/components/Toast'
 
 interface Config {
   llmBaseUrl: string
@@ -30,18 +31,6 @@ const CUSTOM_PROVIDER: ProviderName = 'Personalizado'
 function providerFromUrl(url: string): ProviderName {
   const match = PROVIDERS.find((p) => p.url !== null && p.url === url)
   return match ? match.name : CUSTOM_PROVIDER
-}
-
-function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onDismiss, 2500)
-    return () => clearTimeout(t)
-  }, [onDismiss])
-  return (
-    <div className="fixed bottom-8 right-6 z-50 bg-graphite-border border border-[#A68966]/40 px-4 py-2 text-sm text-[#E3E2E2] animate-fade-in">
-      {message}
-    </div>
-  )
 }
 
 export default function SettingsPage() {
@@ -164,11 +153,6 @@ export default function SettingsPage() {
 
   return (
     <>
-      <style>{`
-        @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
-        .animate-fade-in { animation: fade-in 200ms ease-out forwards }
-      `}</style>
-
       <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase font-semibold">AJUSTES</p>
       <h1 className="font-serif text-3xl text-[#E3E2E2] mt-1">Configuración de IA</h1>
       <p className="text-sm text-[#5A5A5A] mt-1">

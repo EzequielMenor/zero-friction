@@ -3,20 +3,7 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
 import { Domain, NoteStatus } from '@prisma/client'
-
-const NOTE_SELECT = {
-  id: true,
-  title: true,
-  content: true,
-  status: true,
-  isImportant: true,
-  dueDate: true,
-  createdAt: true,
-  updatedAt: true,
-  domain: true,
-  tags: true,
-  suggestedGoals: true,
-} as const
+import { NOTE_SELECT } from '@/lib/hubs'
 
 const VALID_STATUSES: NoteStatus[] = ['DRAFT', 'NEEDS_REVIEW', 'ACTIVE', 'IN_PROGRESS', 'DONE']
 const VALID_DOMAINS: Domain[] = ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS']

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NotePanel, type NoteDraft, type NoteItem } from '@/components/NotePanel'
+import { Toast } from '@/components/Toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -291,8 +292,6 @@ export default function CalendarPage() {
   return (
     <>
       <style>{`
-        @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
-        .animate-fade-in { animation: fade-in 200ms ease-out forwards }
         .cal-cell { transition: border-color 150ms ease-out, background-color 150ms ease-out }
         .cal-cell:hover { border-color: rgba(166, 137, 102, 0.4) }
         .cal-tag { transition: border-color 120ms ease-out, color 120ms ease-out }
@@ -522,16 +521,7 @@ export default function CalendarPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-8 right-6 z-50 bg-graphite-border border border-[#A68966]/40 px-4 py-2 text-sm text-[#E3E2E2] animate-fade-in">
-          {toast}
-          <button
-            onClick={() => setToast(null)}
-            className="ml-3 text-[#5A5A5A] hover:text-[#A68966] text-xs"
-            aria-label="Cerrar notificación"
-          >
-            ✕
-          </button>
-        </div>
+        <Toast message={toast} onDismiss={() => setToast(null)} />
       )}
     </>
   )
