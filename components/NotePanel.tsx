@@ -100,14 +100,14 @@ function SuggestedGoalButton({ noteId, goal }: { noteId: string; goal: string })
 
   return (
     <div className="flex items-start gap-2">
-      <span className="text-[#5A5A5A] text-xs flex-1 leading-relaxed">{goal}</span>
+      <span className="text-fg-faint text-xs flex-1 leading-relaxed">{goal}</span>
       <button
         onClick={handleAccept}
         disabled={accepted}
         className={`flex-shrink-0 text-[10px] uppercase tracking-wider px-2 py-1 border transition-colors ${
           accepted
-            ? 'border-[#A68966]/20 text-[#A68966]/30 cursor-default'
-            : 'border-[#A68966]/40 text-[#A68966] hover:bg-[#A68966]/10'
+            ? 'border-accent/20 text-accent/30 cursor-default'
+            : 'border-accent/40 text-accent hover:bg-accent/10'
         }`}
       >
         {accepted ? 'Aceptada' : 'Aceptar como Meta'}
@@ -257,12 +257,12 @@ export function NotePanel({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-graphite/70 backdrop-blur-sm p-4 md:items-center animate-fade-in"
+        className="fixed inset-0 z-50 flex items-end justify-center bg-bg/70 backdrop-blur-sm p-4 md:items-center animate-fade-in"
         onPointerDown={(e) => {
           if (e.target === e.currentTarget) onClose()
         }}
       >
-        <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-graphite-border bg-graphite-card px-6 pb-8 pt-6 shadow-2xl md:max-w-2xl md:rounded-3xl animate-scale-in">
+        <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-border bg-surface px-6 pb-8 pt-6 shadow-2xl md:max-w-2xl md:rounded-3xl animate-scale-in">
           <div>
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
@@ -274,17 +274,17 @@ export function NotePanel({
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder={domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Nombre de la tarea' : 'Título de la nota'}
-                    className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] font-serif text-2xl leading-snug px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                    className="w-full bg-surface border border-border text-fg font-serif text-2xl leading-snug px-2 py-1 focus:outline-none focus:border-accent/50"
                   />
                   <div className="mt-2">
-                    <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                    <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
                       Dominio
                     </label>
                     <select
                       value={domain}
                       onChange={(e) => setDomain(e.target.value as NoteDomain)}
                       disabled={lockDomain}
-                      className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full bg-surface border border-border text-fg-muted text-xs px-2 py-1 focus:outline-none focus:border-accent/50 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <option value="ESPIRITUAL">Espiritual</option>
                       <option value="PERSONAL">Personal</option>
@@ -295,13 +295,13 @@ export function NotePanel({
                   {(domain === 'PROYECTOS' || domain === 'PERSONAL') && (
                     <>
                       <div className="mt-2">
-                        <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                        <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
                           Estado
                         </label>
                         <select
                           value={status}
                           onChange={(e) => setStatus(e.target.value as NoteStatus)}
-                          className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                          className="w-full bg-surface border border-border text-fg-muted text-xs px-2 py-1 focus:outline-none focus:border-accent/50"
                         >
                           <option value="ACTIVE">Activa</option>
                           <option value="IN_PROGRESS">En curso</option>
@@ -310,14 +310,14 @@ export function NotePanel({
                         </select>
                       </div>
                       <div className="mt-2">
-                        <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                        <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
                           Fecha Límite (Opcional)
                         </label>
                         <input
                           type="date"
                           value={dueDate}
                           onChange={(e) => setDueDate(e.target.value)}
-                          className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                          className="w-full bg-surface border border-border text-fg-muted text-xs px-2 py-1 focus:outline-none focus:border-accent/50"
                         />
                       </div>
                       <div className="mt-3 flex items-center gap-2">
@@ -326,11 +326,11 @@ export function NotePanel({
                           id="isImportant"
                           checked={isImportant}
                           onChange={(e) => setIsImportant(e.target.checked)}
-                          className="rounded border-graphite-border bg-graphite-card text-[#A68966] focus:ring-0"
+                          className="rounded border-border bg-surface text-accent focus:ring-0"
                         />
                         <label
                           htmlFor="isImportant"
-                          className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] select-none cursor-pointer"
+                          className="text-[10px] tracking-[0.15em] uppercase text-fg-faint select-none cursor-pointer"
                         >
                           Marcar como Importante (★)
                         </label>
@@ -340,10 +340,10 @@ export function NotePanel({
                 </>
               ) : (
                 <>
-                  <h2 className="font-serif text-2xl text-[#E3E2E2] leading-snug">
+                  <h2 className="font-serif text-2xl text-fg leading-snug">
                     {title || 'Sin título'}
                   </h2>
-                  <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mt-1 flex items-center gap-1">
+                  <p className="text-[10px] tracking-[0.15em] uppercase text-fg-faint mt-1 flex items-center gap-1">
                     {meta && <HubIcon icon={meta.icon} size={12} />}
                     {meta?.label ?? domain}
                   </p>
@@ -352,7 +352,7 @@ export function NotePanel({
             </div>
             <button
               onClick={onClose}
-              className="ml-4 flex-shrink-0 text-[#5A5A5A] hover:text-[#A68966] transition-colors"
+              className="ml-4 flex-shrink-0 text-fg-faint hover:text-accent transition-colors"
               aria-label="Cerrar"
             >
               <svg viewBox="0 0 16 16" className="w-4 h-4">
@@ -369,14 +369,14 @@ export function NotePanel({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex-1 border border-[#A68966]/60 text-[#A68966] text-xs uppercase tracking-wider py-2 hover:bg-[#A68966]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                  className="flex-1 border border-accent/60 text-accent text-xs uppercase tracking-wider py-2 hover:bg-accent/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   {saving ? 'Guardando…' : 'Guardar'}
                 </button>
                 <button
                   onClick={handleCancel}
                   disabled={saving}
-                  className="flex-1 border border-graphite-border text-[#A1A1AA] text-xs uppercase tracking-wider py-2 hover:border-[#A68966]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 border border-border text-fg-muted text-xs uppercase tracking-wider py-2 hover:border-accent/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancelar
                 </button>
@@ -397,27 +397,27 @@ export function NotePanel({
           {!isEditing && note && (
             <>
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3 text-[11px] text-[#5A5A5A]">
-                  <span className="border border-[#A68966]/40 text-[#A68966] px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                <div className="flex items-center gap-3 text-[11px] text-fg-faint">
+                  <span className="border border-accent/40 text-accent px-2 py-0.5 text-[10px] uppercase tracking-wider">
                     {statusBadge(status)}
                   </span>
                   {note.dueDate && (
                     <span>{new Date(note.dueDate).toLocaleDateString('es-AR')}</span>
                   )}
                   {note.isImportant && (
-                    <span className="text-[#A68966]">★ Importante</span>
+                    <span className="text-accent">★ Importante</span>
                   )}
                 </div>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="border border-graphite-border text-[#A1A1AA] text-[10px] uppercase tracking-wider px-3 py-1 hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                  className="border border-border text-fg-muted text-[10px] uppercase tracking-wider px-3 py-1 hover:border-accent/40 hover:text-accent transition-colors"
                 >
                   Editar
                 </button>
               </div>
 
-              <div className="prose prose-sm text-[#A1A1AA] font-sans leading-relaxed whitespace-pre-wrap">
-                {content || <span className="italic text-[#5A5A5A]">Sin contenido.</span>}
+              <div className="prose prose-sm text-fg-muted font-sans leading-relaxed whitespace-pre-wrap">
+                {content || <span className="italic text-fg-faint">Sin contenido.</span>}
               </div>
 
               {/* Tags */}
@@ -426,7 +426,7 @@ export function NotePanel({
                   {note.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="text-[10px] uppercase tracking-wider border border-[#A68966]/30 text-[#A68966] px-2 py-0.5"
+                      className="text-[10px] uppercase tracking-wider border border-accent/30 text-accent px-2 py-0.5"
                     >
                       {tag}
                     </span>
@@ -436,8 +436,8 @@ export function NotePanel({
 
               {/* Suggested Goals — only for espiritual notes */}
               {note.domain === 'ESPIRITUAL' && note.suggestedGoals && note.suggestedGoals.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-graphite-border">
-                  <p className="text-[10px] tracking-[0.15em] uppercase text-[#A68966] mb-3">
+                <div className="mt-6 pt-4 border-t border-border">
+                  <p className="text-[10px] tracking-[0.15em] uppercase text-accent mb-3">
                     Metas sugeridas por IA
                   </p>
                   <div className="space-y-2">
@@ -448,7 +448,7 @@ export function NotePanel({
                 </div>
               )}
 
-              <div className="mt-8 pt-4 border-t border-graphite-border text-[10px] text-[#5A5A5A]">
+              <div className="mt-8 pt-4 border-t border-border text-[10px] text-fg-faint">
                 <p>Creada {relativeTime(note.createdAt)}</p>
                 <p className="mt-0.5">Actualizada {relativeTime(note.updatedAt)}</p>
               </div>
@@ -459,18 +459,18 @@ export function NotePanel({
           {isEditing && (
             <>
               <div className="mt-4">
-                <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
                   {domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Descripción' : 'Contenido'}
                 </label>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder={domain === 'PROYECTOS' || domain === 'PERSONAL' ? 'Escribí la descripción o sub-tareas…' : 'Escribí el contenido de la nota…'}
-                  className="w-full h-48 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm font-sans leading-relaxed px-3 py-2 focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+                  className="w-full h-48 bg-surface border border-border text-fg-muted text-sm font-sans leading-relaxed px-3 py-2 focus:outline-none focus:border-accent/50 placeholder-fg-faint"
                 />
               </div>
               <div className="mt-4">
-                <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
                   Etiquetas (separadas por comas)
                 </label>
                 <input
@@ -478,11 +478,11 @@ export function NotePanel({
                   value={tagsText}
                   onChange={(e) => setTagsText(e.target.value)}
                   placeholder="ej: programacion, ideas, gym"
-                  className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+                  className="w-full bg-surface border border-border text-fg-muted text-xs px-2 py-1 focus:outline-none focus:border-accent/50 placeholder-fg-faint"
                 />
               </div>
               {error && (
-                <p className="text-[#F87171] text-xs mt-2">{error}</p>
+                <p className="text-error text-xs mt-2">{error}</p>
               )}
             </>
           )}

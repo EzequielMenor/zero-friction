@@ -200,11 +200,11 @@ export default function InboxSection({
     <section className="mt-8">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase">INBOX</p>
+        <p className="text-[10px] tracking-[0.2em] text-accent uppercase">INBOX</p>
         {cards.length >= 1 && (
           <button
             onClick={() => void processAll()}
-            className="text-[10px] tracking-wider text-[#A68966] uppercase hover:underline"
+            className="text-[10px] tracking-wider text-accent uppercase hover:underline"
           >
             Procesar todo
           </button>
@@ -215,9 +215,9 @@ export default function InboxSection({
       {cards.length === 0 && (
         <div
           data-testid="inbox-empty"
-          className="border border-graphite-border bg-graphite-card px-4 py-6 text-center"
+          className="border border-border bg-surface px-4 py-6 text-center"
         >
-          <p className="text-sm text-[#5A5A5A] italic">Inbox vacío</p>
+          <p className="text-sm text-fg-faint italic">Inbox vacío</p>
         </div>
       )}
 
@@ -246,17 +246,17 @@ type InboxCardProps = {
 
 function InboxCard({ card, state }: InboxCardProps) {
   return (
-    <div data-testid="inbox-card" data-note-id={card.id} className="border border-graphite-border bg-graphite-card px-4 py-3">
-      <p className="text-sm text-[#E3E2E2] truncate">{card.title}</p>
+    <div data-testid="inbox-card" data-note-id={card.id} className="border border-border bg-surface px-4 py-3">
+      <p className="text-sm text-fg truncate">{card.title}</p>
       {card.content && (
-        <p className="mt-0.5 text-xs text-[#5A5A5A] truncate">{card.content.slice(0, 80)}</p>
+        <p className="mt-0.5 text-xs text-fg-faint truncate">{card.content.slice(0, 80)}</p>
       )}
 
       {/* Action area — solo estados transitorios. El estado idle no tiene
           botón per-card: el SSE auto-morpha la card cuando termina el proceso. */}
       <div className="mt-2 flex items-center gap-2">
         {state.tag === 'processing' && (
-          <span className="text-[10px] uppercase tracking-wider text-[#5A5A5A] flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-fg-faint flex items-center gap-1.5">
             <svg
               className="animate-spin h-3 w-3"
               viewBox="0 0 24 24"
