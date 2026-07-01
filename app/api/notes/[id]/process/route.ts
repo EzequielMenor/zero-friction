@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import { runCaptureChatCompletion, enrichDraftNote } from '@/lib/parse-capture'
+import { emitNoteProcessed } from '@/lib/draft-events'
+import {
+  runCaptureChatCompletion,
+  enrichDraftNote,
+  createTransactionFromParsed,
+  createOrToggleHabitLogFromParsed,
+  createWorkoutFromParsed,
+  type ParsedCapture,
+} from '@/lib/parse-capture'
 
 // ─── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -41,37 +49,100 @@ export async function POST(
     return NextResponse.json({ error: 'not a draft' }, { status: 409 })
   }
 
-  // 3. AI parsing with 15s timeout
-  let parsed: Awaited<ReturnType<typeof runCaptureChatCompletion>>
+  // 3. AI parsing with 15s timeout. On failure: promote DRAFT → NEEDS_REVIEW
+  // (Task 5.6) so the note shows up in the user's Review Inbox instead of
+  // getting stuck in DRAFT limbo where nobody ever re-tries it.
+  let parsed: ParsedCapture
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15_000)
   try {
-    parsed = await runCaptureChatCompletion(note.content, session.userId, controller.signal)
-  } catch {
+    parsed = await runCaptureChatCompletion(
+      note.content,
+      session.userId,
+      controller.signal
+    )
+  } catch (err) {
     clearTimeout(timeout)
-    if (controller.signal.aborted) {
-      return NextResponse.json(
-        { error: 'AI_TIMEOUT', noteId, keptStatus: 'DRAFT' },
-        { status: 504 }
-      )
-    }
-    // OpenAI or network error
+    console.error('[process] AI classification failed for note', noteId, err)
+    // ponytail: updateMany with status='DRAFT' is a CAS — survives a concurrent
+    // process racing us to delete the note. count=0 just means someone else
+    // already promoted / cleaned it; either way the user is taken care of.
+    const promoted = await prisma.note.updateMany({
+      where: { id: noteId, userId: session.userId, status: 'DRAFT' },
+      data: { status: 'NEEDS_REVIEW' },
+    })
+    emitNoteProcessed({
+      noteId,
+      domain: 'NEEDS_REVIEW',
+      status: 'promoted',
+    })
     return NextResponse.json(
-      { error: 'AI_FAILED', noteId, keptStatus: 'DRAFT' },
-      { status: 502 }
+      { status: 'promoted', noteId, promotedToReview: true, promotedCount: promoted.count },
+      { status: 200 }
     )
   }
   clearTimeout(timeout)
 
-  // 4. CAS-gated enrichment
+  // 4. REGISTROS branch (Task 5.6): route to the matching structured table,
+  // then delete the original Note (CAS-gated to survive concurrent processing).
+  if (parsed.domain === 'REGISTROS') {
+    const recordType = parsed.metadata.recordType
+
+    if (
+      recordType === 'finanzas' ||
+      recordType === 'habito' ||
+      recordType === 'gimnasio'
+    ) {
+      let entity: { id: string; kind: string }
+      try {
+        if (recordType === 'finanzas') {
+          entity = await createTransactionFromParsed(session.userId, parsed)
+        } else if (recordType === 'habito') {
+          entity = await createOrToggleHabitLogFromParsed(session.userId, parsed)
+        } else {
+          entity = await createWorkoutFromParsed(session.userId, parsed)
+        }
+      } catch (err) {
+        console.error('[process] REGISTROS create failed for note', noteId, err)
+        return NextResponse.json(
+          { error: 'CREATE_FAILED', noteId, keptStatus: 'DRAFT' },
+          { status: 500 }
+        )
+      }
+
+      const deleted = await prisma.note.deleteMany({
+        where: { id: noteId, userId: session.userId, status: 'DRAFT' },
+      })
+
+      if (deleted.count === 0) {
+        emitNoteProcessed({ noteId, domain: recordType, status: 'already_processed' })
+        return NextResponse.json({ alreadyProcessed: true }, { status: 200 })
+      }
+
+      emitNoteProcessed({ noteId, domain: recordType, status: 'ok' })
+
+      return NextResponse.json({
+        status: 'ok',
+        kind: entity.kind,
+        entityId: entity.id,
+        noteId,
+      })
+    }
+    // REGISTROS without a recognized recordType → fall through to the default
+    // Note enrichment path below.
+  }
+
+  // 5. Default: ESPIRITUAL / PERSONAL / APRENDIZAJE / PROYECTOS (and REGISTROS
+  // fallback) → enrich the Note to ACTIVE via the CAS-gated helper.
   const updated = await enrichDraftNote(noteId, session.userId, parsed)
 
   if (updated === null) {
-    // CAS failed — already processed by a concurrent request
+    emitNoteProcessed({ noteId, domain: parsed.domain, status: 'already_processed' })
     return NextResponse.json({ alreadyProcessed: true }, { status: 200 })
   }
 
-  // 5. Return enriched note
+  emitNoteProcessed({ noteId, domain: updated.domain, status: 'ok' })
+
   return NextResponse.json({
     note: {
       id: updated.id,

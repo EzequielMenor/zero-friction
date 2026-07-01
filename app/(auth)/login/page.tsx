@@ -33,13 +33,13 @@ function LoginForm() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error ?? 'login failed')
+        setError(data.error ?? 'No se pudo iniciar sesión')
         return
       }
       router.replace(redirect)
       router.refresh()
     } catch {
-      setError('network error')
+      setError('Error de red')
     } finally {
       setLoading(false)
     }
@@ -48,8 +48,8 @@ function LoginForm() {
   return (
     <div className="flex min-h-[80vh] items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <h1 className="font-serif text-3xl text-[#E3E2E2] mb-2">Welcome back</h1>
-        <p className="text-sm text-[#A1A1AA] mb-10">Sign in to your private workspace.</p>
+        <h1 className="font-serif text-3xl text-[#E3E2E2] mb-2">Bienvenido de nuevo</h1>
+        <p className="text-sm text-[#A1A1AA] mb-10">Ingresá a tu espacio privado.</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <Field
@@ -61,7 +61,7 @@ function LoginForm() {
             required
           />
           <Field
-            label="Password"
+            label="Contraseña"
             type="password"
             autoComplete="current-password"
             value={password}
@@ -76,14 +76,14 @@ function LoginForm() {
             disabled={loading}
             className="w-full rounded-full bg-[#A68966] px-5 py-3 text-sm font-semibold tracking-wide text-black transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Ingresando…' : 'Ingresar'}
           </button>
         </form>
 
         <p className="mt-10 text-center text-sm text-[#A1A1AA]">
-          No account?{' '}
+          ¿No tenés cuenta?{' '}
           <a href="/signup" className="text-[#A68966] hover:underline">
-            Request access
+            Solicitar acceso
           </a>
         </p>
       </div>

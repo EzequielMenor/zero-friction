@@ -3,8 +3,8 @@
 // Capture Overlay — the zero-friction entry point.
 // Triggered by the floating button (mobile) or Cmd/Ctrl+K + Opt/Alt+Space (desktop).
 // ponytail: one self-contained client component. No state lib, no portal lib, no
-// date lib — native MediaRecorder, a regex chip detector, a setTimeout debounce,
-// and a CustomEvent for the draft state. Upgrade pieces only when they hurt.
+// date lib — native MediaRecorder, a regex chip detector, and a CustomEvent for
+// the draft state. Upgrade pieces only when they hurt.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
@@ -59,10 +59,19 @@ function parseChips(text: string): Chips {
   return { dates: [...dates], important: text.includes('!') }
 }
 
-// Dynamic countdown: 3–10s, scaled by word count. ~5 words per second of grace.
-function countdownDuration(text: string): number {
+// ─── Countdown helpers ───────────────────────────────────────────────────────
+// ponytail: dinámica simple — más palabras, más tiempo de revisión. La fórmula
+// está en el SPEC §3.2; clamp a [3, 10] para que un "hola" no desaparezca al
+// toque y un párrafo de 5 líneas no se quede 30s.
+
+const MIN_COUNTDOWN_S = 3
+const MAX_COUNTDOWN_S = 10
+const TICK_MS = 100
+
+function calcCountdownDuration(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length
-  return Math.max(3, Math.min(10, Math.floor(words / 5)))
+  const seconds = words * 0.8
+  return Math.max(MIN_COUNTDOWN_S, Math.min(MAX_COUNTDOWN_S, Math.round(seconds)))
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -77,105 +86,136 @@ export default function CaptureOverlay() {
   const [transcribing, setTranscribing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [results, setResults] = useState<SearchNote[]>([])
-  const [countdown, setCountdown] = useState<number | null>(null)
-  const [manualMode, setManualMode] = useState(false)
-  const [duration, setDuration] = useState(3)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // ponytail: hint for "I clicked submit with nothing" / "your recording was empty".
+  // Stays distinct from errorMessage (errors are from the API; hints are local).
+  const [hintMessage, setHintMessage] = useState<string | null>(null)
+  // ponytail: countdown post-transcripción. La voz transcrita muestra un ring
+  // con segundos restantes antes del auto-send. El usuario cancela tocando el
+  // textarea o el botón "Cancelar" → vuelve a modo manual.
+  const [countdown, setCountdown] = useState<{ remaining: number; total: number } | null>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const textRef = useRef('')
+  // Referencia al setInterval del countdown — necesitamos el id para cancelarlo
+  // desde el escape hatch y desde el cleanup del componente.
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const chips = parseChips(text)
-  const ringProgress = countdown !== null ? countdown / duration : 0
 
   // Keep textRef in sync so the stable `submit` always reads the latest text.
   useEffect(() => {
     textRef.current = text
   }, [text])
 
-  // ─── Countdown control ──────────────────────────────────────────────────────
+  // ── Countdown lifecycle ────────────────────────────────────────────────────
+  // Limpia el interval cuando el componente se desmonta o se cierra el overlay.
+  useEffect(() => {
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+        countdownIntervalRef.current = null
+      }
+    }
+  }, [])
+
   const stopCountdown = useCallback(() => {
-    if (countdownRef.current) {
-      clearInterval(countdownRef.current)
-      countdownRef.current = null
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
     }
     setCountdown(null)
   }, [])
 
-  const submit = useCallback(async (): Promise<void> => {
-    stopCountdown()
-    const trimmed = textRef.current.trim()
-    if (!trimmed) return
-    setSubmitting(true)
-
-    try {
-      // Text capture → instant DRAFT via /api/notes (no AI at capture time).
-      // Audio-only path goes through /api/capture via startRecording.
-      const res = await fetch('/api/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed }),
-      })
-
-      if (res.status === 201) {
-        const result: { id: string } = await res.json()
-        // Notify InboxSection to prepend the new DRAFT note.
-        window.dispatchEvent(
-          new CustomEvent('zf:draft', { detail: { noteId: result.id } })
-        )
-        setOpen(false)
-        setText('')
-        setResults([])
-        setManualMode(false)
-      } else {
-        // 4xx/5xx — keep overlay open, surface error inline.
-        const err: { error?: string } = await res.json().catch(() => ({}))
-        setErrorMessage(err.error ?? 'Error desconocido')
+  // ponytail: triggerProcess es solo para el path de audio (Task 5.6) — el
+  // submit de texto sigue con la UX manual de "Procesar con IA" desde el inbox.
+  const submit = useCallback(
+    async (opts: { triggerProcess?: boolean } = {}): Promise<void> => {
+      const trimmed = textRef.current.trim()
+      // ponytail: empty submit used to silently no-op. Now flash a local hint so
+      // the user knows nothing was sent (no API call, no toast, no draft event).
+      if (!trimmed) {
+        setHintMessage('Escribe o graba algo para capturar.')
+        setTimeout(() => setHintMessage(null), 4000)
+        return
       }
-    } catch {
-      setErrorMessage('Error de red')
-    } finally {
-      setSubmitting(false)
-    }
-  }, [stopCountdown])
+      setSubmitting(true)
 
-  const startCountdown = useCallback(
-    (seconds: number) => {
-      stopCountdown()
-      setDuration(seconds)
-      setCountdown(seconds)
-      setManualMode(false)
-      let remaining = seconds
-      countdownRef.current = setInterval(() => {
-        remaining -= 1
-        if (remaining <= 0) {
+      try {
+        // Text capture → instant DRAFT via /api/notes (no AI at capture time).
+        // Audio-only path goes through /api/capture via startRecording.
+        const res = await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: trimmed }),
+        })
+
+        if (res.status === 201) {
+          const result: { id: string } = await res.json()
+          // Notify InboxSection to prepend the new DRAFT note.
+          window.dispatchEvent(
+            new CustomEvent('zf:draft', { detail: { noteId: result.id } })
+          )
+          // ponytail: fire-and-forget — UI doesn't block on processing; the
+          // Inbox card and downstream flows pick it up.
+          if (opts.triggerProcess) {
+            void fetch(`/api/notes/${result.id}/process`, { method: 'POST' })
+          }
+          setOpen(false)
+          setText('')
+          setResults([])
           stopCountdown()
-          void submit()
         } else {
-          setCountdown(remaining)
+          // 4xx/5xx — keep overlay open, surface error inline.
+          const err: { error?: string } = await res.json().catch(() => ({}))
+          setErrorMessage(err.error ?? 'Error desconocido')
         }
-      }, 1000)
+      } catch {
+        setErrorMessage('Error de red')
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [stopCountdown]
+  )
+
+  // ponytail: countdown post-transcripción. Se llama desde el onstop del
+  // MediaRecorder cuando llega la transcripción. El usuario tiene 3-10s para
+  // cancelar (tocar el textarea, "Cancelar") antes del auto-send.
+  const startCountdown = useCallback(
+    (transcribedText: string) => {
+      // Si ya hay un countdown corriendo, lo limpiamos antes de empezar otro.
+      stopCountdown()
+      const total = calcCountdownDuration(transcribedText)
+      const startedAt = Date.now()
+      setCountdown({ remaining: total, total })
+
+      countdownIntervalRef.current = setInterval(() => {
+        const elapsed = (Date.now() - startedAt) / 1000
+        const remaining = Math.max(0, total - elapsed)
+        if (remaining <= 0) {
+          // Disparar submit y limpiar.
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current)
+            countdownIntervalRef.current = null
+          }
+          setCountdown(null)
+          void submit({ triggerProcess: true })
+        } else {
+          setCountdown({ remaining, total })
+        }
+      }, TICK_MS)
     },
     [stopCountdown, submit]
   )
-
-  // Any user interaction while the countdown is live → pause into manual mode.
-  const pauseCountdown = useCallback(() => {
-    if (countdownRef.current) {
-      stopCountdown()
-      setManualMode(true)
-    }
-  }, [stopCountdown])
 
   // ─── Open / close ───────────────────────────────────────────────────────────
   const openOverlay = useCallback(() => {
     setOpen(true)
     setText('')
     setResults([])
-    setManualMode(false)
     stopCountdown()
     setTimeout(() => textareaRef.current?.focus(), 60)
   }, [stopCountdown])
@@ -184,7 +224,6 @@ export default function CaptureOverlay() {
     setOpen(false)
     setText('')
     setResults([])
-    setManualMode(false)
     stopCountdown()
   }, [stopCountdown])
 
@@ -235,6 +274,10 @@ export default function CaptureOverlay() {
   }, [text])
 
   // ─── Voice recording (MediaRecorder) ────────────────────────────────────────
+  // ponytail: Task 5.6 — audio path mirrors the text flow (POST /api/notes)
+  // and fires background /api/notes/[id]/process. En vez de submit inmediato,
+  // ahora muestra un countdown (Plan 2026-07-01-voice-autosend-timer) — el
+  // usuario puede revisar/corregir la transcripción antes del auto-send.
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -258,10 +301,17 @@ export default function CaptureOverlay() {
             const data = await res.json()
             const t = typeof data.text === 'string' ? data.text : ''
             setText(t)
-            if (t.trim()) startCountdown(countdownDuration(t))
+            if (t.trim()) {
+              // Iniciar countdown en vez de submit inmediato. El usuario tiene
+              // 3-10s para revisar; cualquier interacción lo cancela.
+              startCountdown(t)
+            } else {
+              setHintMessage('Escribe o graba algo para capturar.')
+              setTimeout(() => setHintMessage(null), 4000)
+            }
           }
         } catch {
-          // ponytail: silent; user can type instead.
+          // ponytail: silent on network errors so the user can fall back to typing.
         } finally {
           setTranscribing(false)
         }
@@ -279,12 +329,22 @@ export default function CaptureOverlay() {
     setRecording(false)
   }, [])
 
-  // Cleanup any running timer on unmount.
-  useEffect(() => {
-    return () => {
-      if (countdownRef.current) clearInterval(countdownRef.current)
-    }
-  }, [])
+  // ─── Escape hatch handlers ──────────────────────────────────────────────────
+  // Cualquier interacción con el textarea corta el countdown y deja al usuario
+  // en modo manual (puede editar y enviar cuando quiera).
+  const onTextareaPointerDown = useCallback(() => {
+    if (countdown) stopCountdown()
+  }, [countdown, stopCountdown])
+
+  const onTextareaChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      if (countdown) stopCountdown()
+      setText(e.target.value)
+      setErrorMessage(null)
+      if (e.target.value.trim().length < 2) setResults([])
+    },
+    [countdown, stopCountdown]
+  )
 
   // ─── Don't render on auth pages (FAB/shortcut would be useless there) ────────
   if (isAuthPage) return null
@@ -310,11 +370,7 @@ export default function CaptureOverlay() {
             if (e.target === e.currentTarget) closeOverlay()
           }}
         >
-          <div
-            className="w-full rounded-t-3xl border border-graphite-border bg-graphite-card px-6 pb-8 pt-6 shadow-2xl md:max-w-lg md:rounded-3xl"
-            onPointerDown={pauseCountdown}
-            onKeyDown={pauseCountdown}
-          >
+          <div className="w-full rounded-t-3xl border border-graphite-border bg-graphite-card px-6 pb-8 pt-6 shadow-2xl md:max-w-lg md:rounded-3xl">
             {/* Header */}
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-serif text-xl text-[#E3E2E2]">Capture</h2>
@@ -332,12 +388,8 @@ export default function CaptureOverlay() {
             <textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => {
-                setText(e.target.value)
-                setErrorMessage(null)
-                pauseCountdown()
-                if (e.target.value.trim().length < 2) setResults([])
-              }}
+              onChange={onTextareaChange}
+              onPointerDown={onTextareaPointerDown}
               placeholder="Escribí o hablá… mañana, importante, 12 de julio"
               rows={4}
               className="w-full resize-none rounded-2xl border border-graphite-border bg-graphite px-4 py-3 font-sans text-[15px] leading-relaxed text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
@@ -366,6 +418,13 @@ export default function CaptureOverlay() {
               </p>
             )}
 
+            {/* Empty-input hint (Task 5.6). Local state, no API call → no error. */}
+            {hintMessage && !errorMessage && (
+              <p className="mt-2 text-xs text-amber-400" role="status">
+                {hintMessage}
+              </p>
+            )}
+
             {/* Search results (prevent duplicates) */}
             {results.length > 0 && (
               <div className="mt-4 space-y-1.5">
@@ -387,12 +446,12 @@ export default function CaptureOverlay() {
             )}
 
             {/* Actions */}
-            <div className="mt-6 flex items-center justify-between">
+            <div className="mt-6 flex items-center justify-between gap-3">
               {/* Mic */}
               <button
                 type="button"
                 onClick={recording ? stopRecording : startRecording}
-                disabled={transcribing || submitting}
+                disabled={transcribing || submitting || countdown !== null}
                 aria-label={recording ? 'Detener grabación' : 'Grabar voz'}
                 className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors disabled:opacity-40 ${
                   recording
@@ -403,14 +462,44 @@ export default function CaptureOverlay() {
                 {transcribing ? <Spinner /> : <MicIcon active={recording} />}
               </button>
 
-              {/* Send (with progress ring when countdown is live) */}
-              <SendButton
-                progress={ringProgress}
-                countdown={countdown}
-                manualMode={manualMode}
-                disabled={text.trim().length === 0 || submitting || transcribing}
+              {/* Countdown o espacio vacío (entre mic y send) */}
+              {countdown ? (
+                <div className="flex flex-1 items-center justify-center gap-3">
+                  <ProgressRing
+                    size={36}
+                    strokeWidth={3}
+                    progress={countdown.remaining / countdown.total}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-wider text-[#A1A1AA]">
+                      Enviando en {Math.ceil(countdown.remaining)}…
+                    </span>
+                    <button
+                      type="button"
+                      onClick={stopCountdown}
+                      className="text-[10px] uppercase tracking-wider text-[#A68966] hover:underline text-left"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <span className="flex-1 text-center text-[10px] uppercase tracking-wider text-[#5A5A5A]">
+                  Manual
+                </span>
+              )}
+
+              {/* Send — disabled durante countdown (auto-modo). En modo manual
+                  sigue siendo el botón de submit. */}
+              <button
+                type="button"
                 onClick={() => void submit()}
-              />
+                disabled={text.trim().length === 0 || submitting || transcribing || countdown !== null}
+                aria-label="Enviar"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-[#A68966] text-black transition-transform hover:scale-105 active:scale-95 disabled:opacity-40"
+              >
+                <SendIcon />
+              </button>
             </div>
 
             {/* Hint */}
@@ -419,8 +508,8 @@ export default function CaptureOverlay() {
                 ? 'Grabando… tocá para detener'
                 : transcribing
                   ? 'Transcribiendo…'
-                  : countdown !== null
-                    ? `Envío automático en ${countdown}s · tocá para editar`
+                  : countdown
+                    ? 'Tocá el texto o "Cancelar" para revisar antes de enviar'
                     : 'Cmd+K para abrir · Esc para cerrar'}
             </p>
           </div>
@@ -445,53 +534,53 @@ function Chip({ icon, label, onClick }: { icon?: React.ReactNode; label: string;
   )
 }
 
-function SendButton({
+// ProgressRing — SVG circular con stroke-dashoffset animado vía CSS transition.
+// ponytail: SVG nativo, sin framer-motion. El padre pasa `progress` (0..1) y
+// el ring se "vacía" o se "llena" según ese ratio. Usamos una transition
+// lineal de 100ms para que cada tick del interval se vea smooth sin saltos.
+function ProgressRing({
+  size,
+  strokeWidth,
   progress,
-  countdown,
-  manualMode,
-  disabled,
-  onClick,
 }: {
+  size: number
+  strokeWidth: number
   progress: number
-  countdown: number | null
-  manualMode: boolean
-  disabled: boolean
-  onClick: () => void
 }) {
-  const R = 20
-  const CIRC = 2 * Math.PI * R
-  const offset = CIRC * (1 - progress)
-  const showRing = countdown !== null && !manualMode
-
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference * (1 - Math.max(0, Math.min(1, progress)))
+  // Color: dorado cuando hay tiempo, virando a rojo en los últimos 1.5s.
+  const isUrgent = progress < 0.2
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="relative flex h-11 w-11 items-center justify-center rounded-full bg-[#A68966] text-black transition-transform hover:scale-105 active:scale-95 disabled:opacity-40"
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ transform: 'rotate(-90deg)' }}
+      aria-hidden="true"
     >
-      {showRing && (
-        <svg
-          className="absolute inset-0 -rotate-90"
-          width="44"
-          height="44"
-          viewBox="0 0 44 44"
-        >
-          <circle
-            cx="22"
-            cy="22"
-            r={R}
-            fill="none"
-            stroke="rgba(0,0,0,0.35)"
-            strokeWidth="2"
-            strokeDashoffset={offset}
-            strokeDasharray={CIRC}
-            strokeLinecap="round"
-          />
-        </svg>
-      )}
-      <SendIcon />
-    </button>
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="#1C1C1F"
+        strokeWidth={strokeWidth}
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke={isUrgent ? '#ef4444' : '#A68966'}
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        style={{ transition: 'stroke-dashoffset 100ms linear, stroke 200ms linear' }}
+      />
+    </svg>
   )
 }
 

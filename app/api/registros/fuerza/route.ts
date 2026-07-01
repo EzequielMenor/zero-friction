@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
@@ -48,14 +48,8 @@ async function getUserId(): Promise<string | null> {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const EPLY_COEFF = 1 + 1 / 30 // Epley: weight * (1 + reps/30)
-
 function estimated1RM(weight: number, reps: number): number {
-  return weight * EPLY_COEFF ** reps
-  // Epley: weight * (1 + reps/30)
-  // Using compound formula: weight * (1 + reps/30)
-  // But this gives 100*(1+5/30) = 116.67 for 100kg x 5 reps
-  // The spec says: weight * (1 + reps / 30)
+  // Epley formula: weight * (1 + reps/30)
   return weight * (1 + reps / 30)
 }
 
@@ -152,6 +146,36 @@ export async function GET(): Promise<NextResponse> {
       personalRecords,
       coachAdvice: coachAdvice?.content ?? null,
     },
+    { headers: { 'Cache-Control': 'no-store' } }
+  )
+}
+
+// ─── DELETE ────────────────────────────────────────────────────────────────────
+
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  const userId = await getUserId()
+  if (!userId) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+  }
+
+  const id = req.nextUrl.searchParams.get('id')
+  if (!id) {
+    return NextResponse.json({ error: 'id query param is required' }, { status: 400 })
+  }
+
+  const workout = await prisma.workout.findFirst({
+    where: { id, userId },
+    select: { id: true },
+  })
+
+  if (!workout) {
+    return NextResponse.json({ error: 'workout not found' }, { status: 404 })
+  }
+
+  await prisma.workout.delete({ where: { id } })
+
+  return NextResponse.json(
+    { ok: true },
     { headers: { 'Cache-Control': 'no-store' } }
   )
 }

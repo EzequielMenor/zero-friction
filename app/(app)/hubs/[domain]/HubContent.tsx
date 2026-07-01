@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { HUBS, domainMeta } from '@/lib/hubs'
 import { HubIcon } from '@/components/icons'
-import { NotePanel, type NoteItem } from '@/components/NotePanel'
+import { NotePanel, type NoteItem, type NoteDraft } from '@/components/NotePanel'
+import type { Domain } from '@prisma/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -35,12 +36,12 @@ function statusBadge(status: NoteStatus): string {
 }
 
 function domainIcon(domain: string): string | null {
-  const meta = domainMeta(domain as Parameters<typeof domainMeta>[0])
+  const meta = domainMeta(domain as Domain)
   return meta?.icon ?? null
 }
 
 function domainLabel(domain: string): string {
-  const meta = domainMeta(domain as Parameters<typeof domainMeta>[0])
+  const meta = domainMeta(domain as Domain)
   return meta?.label ?? domain
 }
 
@@ -94,8 +95,10 @@ export default function HubContent({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null)
   const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null)
   const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
 
   const hub = HUBS.find((h) => h.slug === slug)
+  const hubDomain = hub?.enum ?? null
 
   const allTags = slug === 'espiritual'
     ? Array.from(new Set(data?.notes.flatMap((n) => n.tags ?? []) ?? [])).sort()
@@ -105,20 +108,22 @@ export default function HubContent({ slug }: { slug: string }) {
     ? (data?.notes.filter((n) => n.tags?.includes(activeTag)) ?? [])
     : (data?.notes ?? [])
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`/api/hubs/${slug}`)
-        if (!res.ok) throw new Error('Failed to load')
-        const json = await res.json()
-        setData(json)
-      } catch {
-        setError('No se pudieron cargar las notas.')
-      } finally {
-        setLoading(false)
-      }
+  const load = async () => {
+    try {
+      const res = await fetch(`/api/hubs/${slug}`)
+      if (!res.ok) throw new Error('Failed to load')
+      const json = await res.json()
+      setData(json)
+    } catch {
+      setError('No se pudieron cargar las notas.')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
   if (loading) {
@@ -143,6 +148,12 @@ export default function HubContent({ slug }: { slug: string }) {
   }
 
   const { relatedItems } = data
+
+  // Build draft for create flow when hub supports it (excludes `registros` directory).
+  const createDraft: NoteDraft | null =
+    hubDomain && hubDomain !== 'REGISTROS'
+      ? { title: '', content: '', domain: hubDomain, status: 'ACTIVE' }
+      : null
 
   return (
     <>
@@ -205,32 +216,45 @@ export default function HubContent({ slug }: { slug: string }) {
         </div>
       )}
 
-      {/* Smart Tags Filter — only for espiritual */}
-      {allTags.length > 0 && slug !== 'registros' && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            onClick={() => setActiveTag(null)}
-            className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
-              activeTag === null
-                ? 'border-[#A68966] text-[#A68966]'
-                : 'border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40'
-            }`}
-          >
-            Todas
-          </button>
-          {allTags.map((tag) => (
+      {/* Smart Tags Filter + Nueva Nota — only for non-registros hubs */}
+      {slug !== 'registros' && (
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setActiveTag(null)}
+                className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
+                  activeTag === null
+                    ? 'border-[#A68966] text-[#A68966]'
+                    : 'border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40'
+                }`}
+              >
+                Todas
+              </button>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setActiveTag(tag === activeTag ? null : tag)}
+                  className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
+                    tag === activeTag
+                      ? 'border-[#A68966] text-[#A68966]'
+                      : 'border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {createDraft && (
             <button
-              key={tag}
-              onClick={() => setActiveTag(tag === activeTag ? null : tag)}
-              className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
-                tag === activeTag
-                  ? 'border-[#A68966] text-[#A68966]'
-                  : 'border-graphite-border text-[#5A5A5A] hover:border-[#A68966]/40'
-              }`}
+              onClick={() => setCreating(true)}
+              className="ml-auto border border-[#A68966]/50 text-[#A68966] text-[10px] uppercase tracking-wider px-3 py-1 hover:bg-[#A68966]/10 transition-colors"
             >
-              {tag}
+              + Nueva Nota
             </button>
-          ))}
+          )}
         </div>
       )}
 
@@ -301,9 +325,29 @@ export default function HubContent({ slug }: { slug: string }) {
         </details>
       </div>
 
-      {/* Detail panel */}
       {selectedNote && (
-        <NotePanel note={selectedNote} onClose={() => setSelectedNote(null)} />
+        <NotePanel
+          note={selectedNote}
+          onClose={() => setSelectedNote(null)}
+          onUpdate={(updated) => setSelectedNote(updated)}
+          onDelete={() => {
+            setSelectedNote(null)
+            load()
+          }}
+        />
+      )}
+
+      {/* Create panel */}
+      {creating && createDraft && (
+        <NotePanel
+          draft={createDraft}
+          lockDomain
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false)
+            load()
+          }}
+        />
       )}
     </>
   )

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import OpenAI from 'openai'
+import { prisma } from '@/lib/prisma'
 import { verifySession, AUTH_COOKIE } from '@/lib/auth'
 
 async function getUserId(req: NextRequest): Promise<string | null> {
@@ -25,7 +26,14 @@ export async function POST(req: NextRequest) {
     llmApiKey?: string | null
   }
 
-  if (!llmBaseUrl || !llmApiKey) {
+  // Resolve the UI mask '••••••••' against the stored key.
+  let apiKey = llmApiKey
+  if (llmApiKey === '••••••••') {
+    const existing = await prisma.lLMConfig.findUnique({ where: { userId } })
+    apiKey = existing?.llmApiKey ?? null
+  }
+
+  if (!llmBaseUrl || !apiKey) {
     return NextResponse.json(
       { error: 'Faltan llmBaseUrl o llmApiKey' },
       { status: 400 }
@@ -33,7 +41,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const client = new OpenAI({ apiKey: llmApiKey, baseURL: llmBaseUrl })
+    const client = new OpenAI({ apiKey, baseURL: llmBaseUrl })
     const page = await client.models.list()
     const ids = page.data.map((m) => m.id).sort()
 

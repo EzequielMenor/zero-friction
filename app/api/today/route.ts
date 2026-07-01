@@ -2,17 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-
-const NOTE_SELECT = {
-  id: true,
-  title: true,
-  content: true,
-  status: true,
-  isImportant: true,
-  dueDate: true,
-  createdAt: true,
-  updatedAt: true,
-} as const
+import { NOTE_SELECT } from '@/lib/hubs'
 
 export async function GET(): Promise<NextResponse> {
   const token = (await cookies()).get(AUTH_COOKIE)?.value

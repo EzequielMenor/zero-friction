@@ -318,3 +318,95 @@ export async function createRelationships(
     )
   )
 }
+
+// ─── REGISTROS helpers ──────────────────────────────────────────────────────────
+
+/** Persist a finanzas transaction from AI-parsed capture. */
+export async function createTransactionFromParsed(
+  userId: string,
+  parsed: ParsedCapture
+): Promise<{ id: string; kind: 'finanzas' }> {
+  const tx = await prisma.transaction.create({
+    data: {
+      userId,
+      amount: parsed.metadata.recordData.value ?? 0,
+      description:
+        parsed.metadata.recordData.name ?? parsed.cleanedTitle,
+      date: new Date(),
+      category: parsed.metadata.recordData.category ?? 'VARIOS',
+    },
+  })
+  return { id: tx.id, kind: 'finanzas' }
+}
+
+/**
+ * Toggle today's habit log — create on first hit, flip `completed` thereafter.
+ * Normalises the date to midnight so @@unique([habitId, date]) works as "one log per day".
+ */
+export async function createOrToggleHabitLogFromParsed(
+  userId: string,
+  parsed: ParsedCapture
+): Promise<{ id: string; kind: 'habito' }> {
+  const habitName = parsed.metadata.recordData.name ?? parsed.cleanedTitle
+
+  let habit = await prisma.habit.findFirst({
+    where: { userId, name: { equals: habitName } },
+  })
+  if (!habit) {
+    habit = await prisma.habit.create({
+      data: { userId, name: habitName, frequency: 'daily' },
+    })
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const existing = await prisma.habitLog.findUnique({
+    where: { habitId_date: { habitId: habit.id, date: today } },
+  })
+
+  const log = existing
+    ? await prisma.habitLog.update({
+        where: { id: existing.id },
+        data: { completed: !existing.completed },
+      })
+    : await prisma.habitLog.create({
+        data: { habitId: habit.id, date: today, completed: true },
+      })
+
+  return { id: log.id, kind: 'habito' }
+}
+
+/**
+ * Upsert a workout record for today and add one set for the parsed exercise.
+ * Workout has @@unique([userId, date]) → one workout per user per day.
+ */
+export async function createWorkoutFromParsed(
+  userId: string,
+  parsed: ParsedCapture
+): Promise<{ id: string; kind: 'gimnasio' }> {
+  const exerciseName =
+    parsed.metadata.recordData.name ?? parsed.cleanedTitle
+  const weight = parsed.metadata.recordData.value ?? 0
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const workout = await prisma.workout.upsert({
+    where: { userId_date: { userId, date: today } },
+    create: { userId, title: parsed.cleanedTitle, date: today },
+    update: {},
+  })
+
+  await prisma.workoutSet.create({
+    data: {
+      workoutId: workout.id,
+      exerciseName,
+      weight,
+      reps: 1,
+      setType: 'normal',
+    },
+  })
+
+  return { id: workout.id, kind: 'gimnasio' }
+}

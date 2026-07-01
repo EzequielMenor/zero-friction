@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import Link from 'next/link'
 import InboxSection from '@/components/InboxSection'
+import { Toast } from '@/components/Toast'
+import { domainMeta } from '@/lib/hubs'
+import type { Domain } from '@prisma/client'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -145,21 +149,6 @@ function FocusIcon() {
   )
 }
 
-// ─── Toast ─────────────────────────────────────────────────────────────────────
-
-function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onDismiss, 3000)
-    return () => clearTimeout(t)
-  }, [onDismiss])
-
-  return (
-    <div className="fixed bottom-8 right-6 z-50 bg-graphite-border border border-[#A68966]/40 px-4 py-2 text-sm text-[#E3E2E2] animate-fade-in">
-      {message}
-    </div>
-  )
-}
-
 // ─── Reflection Form ─────────────────────────────────────────────────────────
 
 function ReflectionForm({
@@ -218,27 +207,6 @@ function ReflectionForm({
   )
 }
 
-// ─── Animations ────────────────────────────────────────────────────────────────
-
-const styles = `
-@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
-@keyframes fade-out { from { opacity: 1 } to { opacity: 0 } }
-@keyframes slide-out { from { opacity: 1; transform: translateX(0) } to { opacity: 0; transform: translateX(16px) } }
-@keyframes pulse-border {
-  0%, 100% { border-color: rgba(166, 137, 102, 0.3); }
-  50% { border-color: rgba(166, 137, 102, 0.6); }
-}
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-.animate-fade-in { animation: fade-in 200ms ease-out forwards }
-.animate-fade-out { animation: fade-out 250ms ease-in forwards }
-.animate-slide-out { animation: slide-out 200ms ease-in forwards }
-.animate-pulse-border { animation: pulse-border 2s ease-in-out infinite }
-.animate-pulse-dot { animation: pulse-dot 1s ease-in-out infinite }
-`
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -251,13 +219,11 @@ export default function Dashboard() {
   const [resurgenceNote, setResurgenceNote] = useState<ResurgenceNote | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; href?: string } | null>(null)
 
-  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const showToast = useCallback((msg: string) => {
-    if (toastTimeout.current) clearTimeout(toastTimeout.current)
-    setToast(msg)
+  const showToast = useCallback((msg: string, _tone?: 'success' | 'error', domain?: string) => {
+    const href = domain ? `/hubs/${domainMeta(domain as Domain)?.slug ?? ''}` : undefined
+    setToast({ message: msg, href: href && href !== '/hubs/' ? href : undefined })
   }, [])
 
   // ── Auth + Data Fetch ───────────────────────────────────────────────────────
@@ -435,6 +401,12 @@ export default function Dashboard() {
     }
   }
 
+  // "Dejar aquí": no reprograma nada — solo saca el nag de la consola de
+  // mantenimiento para esta sesión (la tarea sigue atrasada, sin tocar el backend).
+  function handleMaintDejarAqui(task: Note) {
+    setMaintenanceTasks((m) => m.filter((x) => x.id !== task.id))
+  }
+
   // ── Habit toggle ─────────────────────────────────────────────────────────────
 
   async function handleHabitToggle(habit: Habit) {
@@ -507,8 +479,6 @@ export default function Dashboard() {
 
   return (
     <>
-      <style>{styles}</style>
-
       {/* Header */}
       <div className="mb-2">
         <p className="text-[10px] tracking-[0.2em] text-[#A68966] uppercase font-semibold">HOY</p>
@@ -550,7 +520,7 @@ export default function Dashboard() {
             </>
           ) : (
             <p className="text-[#5A5A5A] text-sm italic leading-relaxed">
-              No active focus. Start a task to lock in deep work.
+              Sin enfoque activo. Marcá una tarea para entrar en deep work.
             </p>
           )}
         </div>
@@ -669,6 +639,12 @@ export default function Dashboard() {
                     >
                       Al Backlog
                     </button>
+                    <button
+                      onClick={() => handleMaintDejarAqui(task)}
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-graphite-border text-[#7A7A7A] hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
+                    >
+                      Dejar aquí
+                    </button>
                   </div>
                 </div>
               )
@@ -768,7 +744,7 @@ export default function Dashboard() {
       )}
 
       {/* Toast */}
-      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} href={toast.href} onDismiss={() => setToast(null)} />}
     </>
   )
 }
