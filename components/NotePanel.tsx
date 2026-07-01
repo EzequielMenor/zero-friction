@@ -6,6 +6,7 @@ import { HubIcon } from '@/components/icons'
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type NoteStatus = 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE' | 'IN_PROGRESS' | 'DONE'
+type NoteDomain = 'ESPIRITUAL' | 'PERSONAL' | 'APRENDIZAJE' | 'PROYECTOS' | 'REGISTROS'
 
 export interface NoteItem {
   id: string
@@ -16,9 +17,28 @@ export interface NoteItem {
   dueDate: string | null
   createdAt: string
   updatedAt: string
-  domain: string
+  domain: NoteDomain
   tags?: string[]
   suggestedGoals?: string[]
+}
+
+export interface NoteDraft {
+  title: string
+  content: string
+  domain: NoteDomain
+  status: NoteStatus
+}
+
+interface NotePanelProps {
+  /** Provide either an existing `note` (edit/view mode) or a `draft` (create mode). */
+  note?: NoteItem
+  draft?: NoteDraft
+  /** When true, lock the domain selector to the provided value (used by HubContent create flow). */
+  lockDomain?: boolean
+  /** Called after a successful save (PATCH) or create (POST). */
+  onClose: () => void
+  onUpdate?: (saved: NoteItem) => void
+  onCreated?: (saved: NoteItem) => void
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -97,26 +117,167 @@ function SuggestedGoalButton({ noteId, goal }: { noteId: string; goal: string })
 
 // ─── Note Panel ───────────────────────────────────────────────────────────────
 
-export function NotePanel({ note, onClose }: { note: NoteItem; onClose: () => void }) {
-  const meta = domainMeta(note.domain)
+export function NotePanel({
+  note,
+  draft,
+  lockDomain = false,
+  onClose,
+  onUpdate,
+  onCreated,
+}: NotePanelProps) {
+  const isCreateMode = !note && !!draft
+
+  // Local form state for edit/create flows
+  const [title, setTitle] = useState(draft?.title ?? note?.title ?? '')
+  const [content, setContent] = useState(draft?.content ?? note?.content ?? '')
+  const [domain, setDomain] = useState<NoteDomain>(draft?.domain ?? note?.domain ?? 'PERSONAL')
+  const [status, setStatus] = useState<NoteStatus>(draft?.status ?? note?.status ?? 'ACTIVE')
+  const [isEditing, setIsEditing] = useState(isCreateMode)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const meta = domainMeta(domain)
+
+  async function handleSave() {
+    if (!title.trim() && !content.trim()) {
+      setError('Agregá un título o contenido antes de guardar.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+
+    try {
+      if (isCreateMode) {
+        const res = await fetch('/api/notes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: title.trim() || 'Sin título',
+            content,
+            domain,
+            status,
+          }),
+        })
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          throw new Error(json.error ?? 'Error al crear la nota')
+        }
+        const created = (await res.json()) as NoteItem
+        onCreated?.(created)
+        onClose()
+        return
+      }
+
+      if (!note) return
+      const res = await fetch(`/api/notes/${note.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim() || 'Sin título',
+          content,
+          domain,
+          status,
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Error al guardar los cambios')
+      }
+      const updated = (await res.json()) as NoteItem
+      // Reflect latest upstream values in local state
+      setTitle(updated.title)
+      setContent(updated.content)
+      setDomain(updated.domain)
+      setStatus(updated.status)
+      setIsEditing(false)
+      onUpdate?.(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleCancel() {
+    if (isCreateMode) {
+      onClose()
+      return
+    }
+    if (!note) return
+    setTitle(note.title)
+    setContent(note.content)
+    setDomain(note.domain)
+    setStatus(note.status)
+    setIsEditing(false)
+    setError(null)
+  }
 
   return (
     <>
       <div
-        className="fixed inset-0 z-50 bg-graphite/60"
-        onClick={onClose}
-      />
-      <div className="fixed right-0 top-0 h-full z-50 w-full max-w-[480px] bg-graphite-card border-l border-graphite-border overflow-y-auto animate-slide-in-right">
-        <div className="p-6">
+        className="fixed inset-0 z-50 flex items-end justify-center bg-graphite/70 backdrop-blur-sm p-4 md:items-center animate-fade-in"
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) onClose()
+        }}
+      >
+        <div className="w-full max-h-[85vh] overflow-y-auto rounded-t-3xl border border-graphite-border bg-graphite-card px-6 pb-8 pt-6 shadow-2xl md:max-w-2xl md:rounded-3xl animate-scale-in">
+          <div>
+          {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1 min-w-0">
-              <h2 className="font-serif text-2xl text-[#E3E2E2] leading-snug">
-                {note.title || 'Sin título'}
-              </h2>
-              <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mt-1 flex items-center gap-1">
-                {meta && <HubIcon icon={meta.icon} size={12} />}
-                {meta?.label ?? note.domain}
-              </p>
+              {isEditing ? (
+                <>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Título de la nota"
+                    className="w-full bg-graphite-card border border-graphite-border text-[#E3E2E2] font-serif text-2xl leading-snug px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                  />
+                  <div className="mt-2">
+                    <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                      Dominio
+                    </label>
+                    <select
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value as NoteDomain)}
+                      disabled={lockDomain}
+                      className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <option value="ESPIRITUAL">Espiritual</option>
+                      <option value="PERSONAL">Personal</option>
+                      <option value="APRENDIZAJE">Aprendizaje</option>
+                      <option value="PROYECTOS">Proyectos</option>
+                    </select>
+                  </div>
+                  <div className="mt-2">
+                    <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                      Estado
+                    </label>
+                    <select
+                      value={status}
+                      onChange={(e) => setStatus(e.target.value as NoteStatus)}
+                      className="w-full bg-graphite-card border border-graphite-border text-[#A1A1AA] text-xs px-2 py-1 focus:outline-none focus:border-[#A68966]/50"
+                    >
+                      <option value="ACTIVE">Activa</option>
+                      <option value="IN_PROGRESS">En curso</option>
+                      <option value="DONE">Hecha</option>
+                      <option value="NEEDS_REVIEW">Revisión</option>
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="font-serif text-2xl text-[#E3E2E2] leading-snug">
+                    {title || 'Sin título'}
+                  </h2>
+                  <p className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] mt-1 flex items-center gap-1">
+                    {meta && <HubIcon icon={meta.icon} size={12} />}
+                    {meta?.label ?? domain}
+                  </p>
+                </>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -130,62 +291,119 @@ export function NotePanel({ note, onClose }: { note: NoteItem; onClose: () => vo
             </button>
           </div>
 
-          <div className="flex items-center gap-3 mb-6 text-[11px] text-[#5A5A5A]">
-            <span className="border border-[#A68966]/40 text-[#A68966] px-2 py-0.5 text-[10px] uppercase tracking-wider">
-              {statusBadge(note.status)}
-            </span>
-            {note.dueDate && (
-              <span>{new Date(note.dueDate).toLocaleDateString('es-AR')}</span>
-            )}
-            {note.isImportant && (
-              <span className="text-[#A68966]">★ Importante</span>
-            )}
-          </div>
+          {/* Edit-mode actions at top */}
+          {isEditing && (
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 border border-[#A68966]/60 text-[#A68966] text-xs uppercase tracking-wider py-2 hover:bg-[#A68966]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Guardando…' : 'Guardar'}
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={saving}
+                className="flex-1 border border-graphite-border text-[#A1A1AA] text-xs uppercase tracking-wider py-2 hover:border-[#A68966]/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
 
-          <div className="prose prose-sm text-[#A1A1AA] font-sans leading-relaxed whitespace-pre-wrap">
-            {note.content || <span className="italic text-[#5A5A5A]">Sin contenido.</span>}
-          </div>
-
-          {/* Tags */}
-          {note.tags && note.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4">
-              {note.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="text-[10px] uppercase tracking-wider border border-[#A68966]/30 text-[#A68966] px-2 py-0.5"
+          {/* View-mode metadata + Editar button */}
+          {!isEditing && note && (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3 text-[11px] text-[#5A5A5A]">
+                  <span className="border border-[#A68966]/40 text-[#A68966] px-2 py-0.5 text-[10px] uppercase tracking-wider">
+                    {statusBadge(status)}
+                  </span>
+                  {note.dueDate && (
+                    <span>{new Date(note.dueDate).toLocaleDateString('es-AR')}</span>
+                  )}
+                  {note.isImportant && (
+                    <span className="text-[#A68966]">★ Importante</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="border border-graphite-border text-[#A1A1AA] text-[10px] uppercase tracking-wider px-3 py-1 hover:border-[#A68966]/40 hover:text-[#A68966] transition-colors"
                 >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Suggested Goals — only for espiritual notes */}
-          {note.domain === 'ESPIRITUAL' && note.suggestedGoals && note.suggestedGoals.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-graphite-border">
-              <p className="text-[10px] tracking-[0.15em] uppercase text-[#A68966] mb-3">
-                Metas sugeridas por IA
-              </p>
-              <div className="space-y-2">
-                {note.suggestedGoals.map((goal, i) => (
-                  <SuggestedGoalButton key={i} noteId={note.id} goal={goal} />
-                ))}
+                  Editar
+                </button>
               </div>
-            </div>
+
+              <div className="prose prose-sm text-[#A1A1AA] font-sans leading-relaxed whitespace-pre-wrap">
+                {content || <span className="italic text-[#5A5A5A]">Sin contenido.</span>}
+              </div>
+
+              {/* Tags */}
+              {note.tags && note.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {note.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="text-[10px] uppercase tracking-wider border border-[#A68966]/30 text-[#A68966] px-2 py-0.5"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Suggested Goals — only for espiritual notes */}
+              {note.domain === 'ESPIRITUAL' && note.suggestedGoals && note.suggestedGoals.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-graphite-border">
+                  <p className="text-[10px] tracking-[0.15em] uppercase text-[#A68966] mb-3">
+                    Metas sugeridas por IA
+                  </p>
+                  <div className="space-y-2">
+                    {note.suggestedGoals.map((goal, i) => (
+                      <SuggestedGoalButton key={i} noteId={note.id} goal={goal} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-8 pt-4 border-t border-graphite-border text-[10px] text-[#5A5A5A]">
+                <p>Creada {relativeTime(note.createdAt)}</p>
+                <p className="mt-0.5">Actualizada {relativeTime(note.updatedAt)}</p>
+              </div>
+            </>
           )}
 
-          <div className="mt-8 pt-4 border-t border-graphite-border text-[10px] text-[#5A5A5A]">
-            <p>Creada {relativeTime(note.createdAt)}</p>
-            <p className="mt-0.5">Actualizada {relativeTime(note.updatedAt)}</p>
-          </div>
+          {/* Edit-mode content body */}
+          {isEditing && (
+            <>
+              <label className="text-[10px] tracking-[0.15em] uppercase text-[#5A5A5A] block mb-1">
+                Contenido
+              </label>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Escribí el contenido de la nota…"
+                className="w-full h-64 bg-graphite-card border border-graphite-border text-[#A1A1AA] text-sm font-sans leading-relaxed px-3 py-2 focus:outline-none focus:border-[#A68966]/50 placeholder-[#5A5A5A]"
+              />
+              {error && (
+                <p className="text-[#F87171] text-xs mt-2">{error}</p>
+              )}
+            </>
+          )}
         </div>
       </div>
+    </div>
       <style>{`
-        @keyframes slide-in-right {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        .animate-slide-in-right { animation: slide-in-right 200ms ease-out forwards }
+        @keyframes scale-in {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .animate-fade-in { animation: fade-in 150ms ease-out forwards }
+        .animate-scale-in { animation: scale-in 150ms ease-out forwards }
       `}</style>
     </>
   )
