@@ -93,7 +93,7 @@ export async function GET(): Promise<NextResponse> {
   })
 
   const accountOutputs = accounts.map((acc) => {
-    const transactionSum = acc.transactions.reduce((sum, t) => sum + t.amount, 0)
+    const transactionSum = acc.transactions.reduce((sum: number, t: { amount: number }) => sum + t.amount, 0)
     return {
       id: acc.id,
       name: acc.name,
