@@ -27,15 +27,14 @@ function NavItem({
       className={[
         'flex items-center gap-2.5 transition-colors duration-150',
         isDesktop
-          ? 'px-3 py-2 text-xs border-l-2 border-transparent hover:border-[#A68966]/40'
+          ? 'px-3 py-2 text-xs border-l-2 border-transparent hover:border-accent/40'
           : 'flex-col py-2 px-3 text-center text-[10px]',
         isActive
           ? isDesktop
-            ? 'border-[#A68966] text-[#A68966]'
-            : 'text-[#A68966]'
-          : 'text-[#5A5A5A] hover:text-[#A68966]/80',
+            ? 'border-accent text-accent'
+            : 'text-accent'
+          : 'text-fg-faint hover:text-accent/80',
       ].join(' ')}
-      style={isDesktop && isActive ? { borderLeftColor: '#A68966' } : undefined}
     >
       {icon ? <HubIcon icon={icon} size={isDesktop ? 16 : 20} /> : children}
       <span
@@ -57,12 +56,12 @@ export default function NavMenu() {
     <>
       {/* Desktop sidebar — fixed left */}
       <nav
-        className="hidden md:flex fixed left-0 top-0 h-full w-[220px] flex-col bg-graphite/95 backdrop-blur-md border-r border-graphite-border z-30"
+        className="hidden md:flex fixed left-0 top-0 h-full w-[220px] flex-col bg-bg/95 backdrop-blur-md border-r border-border z-30"
         aria-label="Navegación principal"
       >
         {/* Wordmark */}
-        <div className="px-6 py-8 border-b border-graphite-border">
-          <span className="font-sans text-[11px] font-semibold tracking-[0.2em] text-[#A68966] uppercase">
+        <div className="px-6 py-8 border-b border-border">
+          <span className="font-sans text-[11px] font-semibold tracking-[0.2em] text-accent uppercase">
             Monograph
           </span>
         </div>
@@ -122,7 +121,7 @@ export default function NavMenu() {
 
       {/* Mobile bottom bar — fixed bottom, horizontally scrollable */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-graphite/95 backdrop-blur-md border-t border-graphite-border flex items-center overflow-x-auto"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-bg/95 backdrop-blur-md border-t border-border flex items-center overflow-x-auto"
         style={{ scrollbarWidth: 'none' } as React.CSSProperties}
         aria-label="Navegación principal"
       >
