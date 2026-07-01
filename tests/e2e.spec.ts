@@ -104,6 +104,25 @@ test.describe('Zero-Friction E2E Verification', () => {
       },
     });
 
+    // Seed Account and linked transaction for Finanzas
+    const testAccount = await prisma.account.create({
+      data: {
+        userId,
+        name: 'Cuenta Test',
+        initialBalance: 1000,
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        userId,
+        amount: -200,
+        description: 'Gasto vinculado',
+        date: today,
+        category: 'ALIMENTACIÓN',
+        accountId: testAccount.id,
+      },
+    });
+
     console.log('Seeding completed. Reloading Today dashboard...');
 
     // Ensure screenshot directory exists
@@ -166,6 +185,20 @@ test.describe('Zero-Friction E2E Verification', () => {
     const menteScreenshotPath = path.join(SCREENSHOT_DIR, 'mente-graph.png');
     await page.screenshot({ path: menteScreenshotPath });
     console.log(`Saved screenshot: ${menteScreenshotPath}`);
+
+    // 21. Navigate to Finanzas hub
+    console.log('Navigating to Finanzas hub...');
+    await page.goto('/hubs/registros/finanzas');
+    await page.waitForLoadState('networkidle');
+
+    // Verify account panel shows account with correct currentBalance (1000 - 200 = 800)
+    await expect(page.getByText('Cuenta Test')).toBeVisible();
+    await expect(page.getByText('$800')).toBeVisible();
+
+    // 22. Take finanzas-hub.png screenshot
+    const finanzasScreenshotPath = path.join(SCREENSHOT_DIR, 'finanzas-hub.png');
+    await page.screenshot({ path: finanzasScreenshotPath });
+    console.log(`Saved screenshot: ${finanzasScreenshotPath}`);
 
     console.log('E2E Verification completed successfully!');
   });
