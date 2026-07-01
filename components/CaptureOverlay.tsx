@@ -80,6 +80,7 @@ export default function CaptureOverlay() {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [manualMode, setManualMode] = useState(false)
   const [duration, setDuration] = useState(3)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -104,51 +105,38 @@ export default function CaptureOverlay() {
     setCountdown(null)
   }, [])
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(async (): Promise<void> => {
     stopCountdown()
     const trimmed = textRef.current.trim()
     if (!trimmed) return
     setSubmitting(true)
 
-    // Draft event → Dashboard renders a loading card while the request is pending.
-    const draftId = `draft-${Date.now()}`
-    window.dispatchEvent(
-      new CustomEvent('zf:draft', {
-        detail: {
-          id: draftId,
-          title: trimmed.slice(0, 80),
-          content: trimmed,
-          pending: true,
-        },
-      })
-    )
-
     try {
-      const res = await fetch('/api/capture', {
+      // Text capture → instant DRAFT via /api/notes (no AI at capture time).
+      // Audio-only path goes through /api/capture via startRecording.
+      const res = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: trimmed }),
       })
-      const data = await res.json().catch(() => ({}))
-      window.dispatchEvent(
-        new CustomEvent('zf:draft', {
-          detail: {
-            id: draftId,
-            serverId: data.id,
-            pending: false,
-            ok: res.ok,
-            data,
-          },
-        })
-      )
-      if (res.ok) {
+
+      if (res.status === 201) {
+        const result: { id: string } = await res.json()
+        // Notify InboxSection to prepend the new DRAFT note.
+        window.dispatchEvent(
+          new CustomEvent('zf:draft', { detail: { noteId: result.id } })
+        )
         setOpen(false)
         setText('')
         setResults([])
         setManualMode(false)
+      } else {
+        // 4xx/5xx — keep overlay open, surface error inline.
+        const err: { error?: string } = await res.json().catch(() => ({}))
+        setErrorMessage(err.error ?? 'Error desconocido')
       }
     } catch {
-      // ponytail: silent fail; the draft card stays as a draft for retry.
+      setErrorMessage('Error de red')
     } finally {
       setSubmitting(false)
     }
@@ -346,6 +334,7 @@ export default function CaptureOverlay() {
               value={text}
               onChange={(e) => {
                 setText(e.target.value)
+                setErrorMessage(null)
                 pauseCountdown()
                 if (e.target.value.trim().length < 2) setResults([])
               }}
@@ -368,6 +357,13 @@ export default function CaptureOverlay() {
                   />
                 )}
               </div>
+            )}
+
+            {/* Inline error */}
+            {errorMessage && (
+              <p className="mt-2 text-xs text-red-400" role="alert">
+                {errorMessage}
+              </p>
             )}
 
             {/* Search results (prevent duplicates) */}
