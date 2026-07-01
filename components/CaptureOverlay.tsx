@@ -358,27 +358,27 @@ export default function CaptureOverlay() {
         type="button"
         onClick={openOverlay}
         aria-label="Capturar nota"
-        className="fixed bottom-6 left-1/2 z-40 size-[52px] -translate-x-1/2 rounded-full bg-[#A68966] text-black shadow-lg shadow-black/40 flex items-center justify-center transition-all duration-200 ease-out hover:scale-105 hover:shadow-[0_4px_24px_rgba(166,137,102,0.25)] active:scale-95 md:bottom-8 md:left-auto md:right-8 md:translate-x-0"
+        className="fixed bottom-6 left-1/2 z-40 size-[52px] -translate-x-1/2 rounded-full bg-accent text-black shadow-lg shadow-black/40 flex items-center justify-center transition-all duration-200 ease-out hover:scale-105 hover:shadow-[0_4px_24px_rgba(166,137,102,0.25)] active:scale-95 md:bottom-8 md:left-auto md:right-8 md:translate-x-0"
       >
         <PenIcon />
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-graphite/70 backdrop-blur-sm md:items-center"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-bg/70 backdrop-blur-sm md:items-center"
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) closeOverlay()
           }}
         >
-          <div className="w-full rounded-t-3xl border border-graphite-border bg-graphite-card px-6 pb-8 pt-6 shadow-2xl md:max-w-lg md:rounded-3xl">
+          <div className="w-full rounded-t-3xl border border-border bg-surface px-6 pb-8 pt-6 shadow-2xl md:max-w-lg md:rounded-3xl">
             {/* Header */}
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-serif text-xl text-[#E3E2E2]">Capture</h2>
+              <h2 className="font-serif text-xl text-fg">Capture</h2>
               <button
                 type="button"
                 onClick={closeOverlay}
                 aria-label="Cerrar"
-                className="text-[#A1A1AA] transition-colors hover:text-[#E3E2E2]"
+                className="text-fg-muted transition-colors hover:text-fg"
               >
                 <CloseIcon />
               </button>
@@ -392,7 +392,7 @@ export default function CaptureOverlay() {
               onPointerDown={onTextareaPointerDown}
               placeholder="Escribí o hablá… mañana, importante, 12 de julio"
               rows={4}
-              className="w-full resize-none rounded-2xl border border-graphite-border bg-graphite px-4 py-3 font-sans text-[15px] leading-relaxed text-[#E3E2E2] outline-none transition focus:border-[#A68966] focus:ring-1 focus:ring-[#A68966]"
+              className="w-full resize-none rounded-2xl border border-border bg-bg px-4 py-3 font-sans text-[15px] leading-relaxed text-fg outline-none transition focus:border-accent focus:ring-1 focus:ring-accent"
             />
 
             {/* Chips */}
@@ -428,7 +428,7 @@ export default function CaptureOverlay() {
             {/* Search results (prevent duplicates) */}
             {results.length > 0 && (
               <div className="mt-4 space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#5A5A5A]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-fg-subtle">
                   Notas similares
                 </p>
                 {results.map((n) => (
@@ -436,10 +436,10 @@ export default function CaptureOverlay() {
                     key={n.id}
                     type="button"
                     onClick={closeOverlay}
-                    className="block w-full rounded-lg border border-graphite-border bg-graphite/40 px-3 py-2 text-left transition-colors hover:border-[#A68966]/40"
+                    className="block w-full rounded-lg border border-border bg-bg/40 px-3 py-2 text-left transition-colors hover:border-accent/40"
                   >
-                    <p className="truncate text-sm text-[#E3E2E2]">{n.title}</p>
-                    <p className="truncate text-xs text-[#5A5A5A]">{n.content}</p>
+                    <p className="truncate text-sm text-fg">{n.title}</p>
+                    <p className="truncate text-xs text-fg-subtle">{n.content}</p>
                   </button>
                 ))}
               </div>
@@ -456,7 +456,7 @@ export default function CaptureOverlay() {
                 className={`flex h-11 w-11 items-center justify-center rounded-full border transition-colors disabled:opacity-40 ${
                   recording
                     ? 'border-red-500/60 bg-red-500/10 text-red-400'
-                    : 'border-graphite-border text-[#A1A1AA] hover:text-[#E3E2E2]'
+                    : 'border-border text-fg-muted hover:text-fg'
                 }`}
               >
                 {transcribing ? <Spinner /> : <MicIcon active={recording} />}
@@ -471,20 +471,20 @@ export default function CaptureOverlay() {
                     progress={countdown.remaining / countdown.total}
                   />
                   <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-wider text-[#A1A1AA]">
+                    <span className="text-[10px] uppercase tracking-wider text-fg-muted">
                       Enviando en {Math.ceil(countdown.remaining)}…
                     </span>
                     <button
                       type="button"
                       onClick={stopCountdown}
-                      className="text-[10px] uppercase tracking-wider text-[#A68966] hover:underline text-left"
+                      className="text-[10px] uppercase tracking-wider text-accent hover:underline text-left"
                     >
                       Cancelar
                     </button>
                   </div>
                 </div>
               ) : (
-                <span className="flex-1 text-center text-[10px] uppercase tracking-wider text-[#5A5A5A]">
+                <span className="flex-1 text-center text-[10px] uppercase tracking-wider text-fg-subtle">
                   Manual
                 </span>
               )}
@@ -496,14 +496,14 @@ export default function CaptureOverlay() {
                 onClick={() => void submit()}
                 disabled={text.trim().length === 0 || submitting || transcribing || countdown !== null}
                 aria-label="Enviar"
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-[#A68966] text-black transition-transform hover:scale-105 active:scale-95 disabled:opacity-40"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-black transition-transform hover:scale-105 active:scale-95 disabled:opacity-40"
               >
                 <SendIcon />
               </button>
             </div>
 
             {/* Hint */}
-            <p className="mt-4 text-center text-[11px] text-[#3F3F3F]">
+            <p className="mt-4 text-center text-[11px] text-fg-faint">
               {recording
                 ? 'Grabando… tocá para detener'
                 : transcribing
@@ -526,7 +526,7 @@ function Chip({ icon, label, onClick }: { icon?: React.ReactNode; label: string;
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-[#A68966]/30 bg-[#A68966]/10 px-3 py-1 text-xs text-[#A68966] transition-colors hover:border-[#A68966]/60 flex items-center gap-1.5"
+      className="rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs text-accent transition-colors hover:border-accent/60 flex items-center gap-1.5"
     >
       {icon}
       {label}
