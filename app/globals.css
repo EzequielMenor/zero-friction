@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@theme {
+  --color-graphite: #0B0B0C;
+  --color-graphite-card: #121214;
+  --color-graphite-border: #1C1C1F;
+}
+
 /* Si quieres mantener tu textura de ruido, la mantienes aquí debajo */
 .noise-bg {
   position: fixed;
