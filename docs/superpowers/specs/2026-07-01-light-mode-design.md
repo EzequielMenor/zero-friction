@@ -112,7 +112,14 @@ Client Component que provee el contexto de tema y expone `useTheme()`.
 2. Componente `ThemeProvider` — envuelve la app, mantiene el estado `theme`, expone `setTheme(t)` y `toggleTheme()`.
 3. Hook `useTheme()` — devuelve `{ theme, setTheme, toggleTheme }`.
 
-**Default**: `theme = 'dark'` (preserva el comportamiento actual para usuarios nuevos — sin entrada en localStorage, el script inline no hace nada y la app carga sin clase `dark`, mostrando el modo claro. **Decisión a revisar**: dado que los usuarios existentes ya están en dark, podemos invertir el default para que sea dark si no hay entrada — se decide en implementación).
+**Default = dark** (preserva comportamiento actual). Lógica del script inline:
+
+| `localStorage('theme')` | Resultado |
+|---|---|
+| `'dark'` o `null` (sin entrada) | añadir clase `.dark` → modo dark |
+| `'light'` | NO añadir clase `.dark` → modo light |
+
+El usuario que ya tenía la app en dark antes de esta feature sigue viéndola en dark automáticamente, sin necesitar tocar nada.
 
 ### 4.2 `app/layout.tsx` (modificado)
 
