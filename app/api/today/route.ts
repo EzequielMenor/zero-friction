@@ -21,6 +21,13 @@ export async function GET(): Promise<NextResponse> {
   const startOfTomorrow = new Date(startOfToday)
   startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
 
+  // ponytail: lógica equivalente a isTask() pero expresada en WHERE Prisma.
+  // Cross-domain: cualquier Note accionable del usuario, sin importar su dominio.
+  const taskWhereBase = {
+    userId: session.userId,
+    status: { in: ['ACTIVE', 'IN_PROGRESS'] as ['ACTIVE', 'IN_PROGRESS'] },
+  }
+
   const [
     focusTask,
     todayTasks,
@@ -30,18 +37,13 @@ export async function GET(): Promise<NextResponse> {
     resurgenceNote,
   ] = await Promise.all([
     prisma.note.findFirst({
-      where: {
-        userId: session.userId,
-        domain: 'PROYECTOS',
-        status: 'IN_PROGRESS',
-      },
+      where: { ...taskWhereBase, status: 'IN_PROGRESS' },
+      orderBy: [{ isImportant: 'desc' }, { updatedAt: 'desc' }],
       select: NOTE_SELECT,
     }),
     prisma.note.findMany({
       where: {
-        userId: session.userId,
-        domain: 'PROYECTOS',
-        status: { in: ['ACTIVE', 'IN_PROGRESS'] },
+        ...taskWhereBase,
         dueDate: { gte: startOfToday, lt: startOfTomorrow },
       },
       orderBy: [{ isImportant: 'desc' }, { createdAt: 'asc' }],
@@ -49,16 +51,12 @@ export async function GET(): Promise<NextResponse> {
     }),
     prisma.note.findMany({
       where: {
-        userId: session.userId,
-        domain: 'PROYECTOS',
-        status: { in: ['ACTIVE', 'IN_PROGRESS'] },
+        ...taskWhereBase,
         OR: [
           { dueDate: { lt: startOfToday } },
           { dueDate: null, isImportant: true },
         ],
       },
-      // ponytail: PG ASC puts NULLs LAST, so overdue (most-overdue first) renders
-      // before undated-important. Upgrade path: explicit two-level sort if it matters.
       orderBy: [{ dueDate: 'asc' }, { isImportant: 'desc' }, { createdAt: 'asc' }],
       select: NOTE_SELECT,
     }),

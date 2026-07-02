@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { HUBS, domainMeta } from '@/lib/hubs'
 import { HubIcon } from '@/components/icons'
 import { NotePanel, type NoteItem, type NoteDraft } from '@/components/NotePanel'
+import { isTask } from '@/lib/notes'
 import type { Domain } from '@prisma/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -24,17 +25,6 @@ function relativeTime(dateStr: string): string {
   return rtf.format(Math.round(diffDays / 365), 'year')
 }
 
-function statusBadge(status: NoteStatus): string {
-  const map: Record<NoteStatus, string> = {
-    DRAFT: 'Borrador',
-    NEEDS_REVIEW: 'Revisión',
-    ACTIVE: 'Activa',
-    IN_PROGRESS: 'En curso',
-    DONE: 'Hecha',
-  }
-  return map[status] ?? status
-}
-
 function domainIcon(domain: string): string | null {
   const meta = domainMeta(domain as Domain)
   return meta?.icon ?? null
@@ -47,15 +37,60 @@ function domainLabel(domain: string): string {
 
 // ─── Note Card ────────────────────────────────────────────────────────────────
 
-function NoteCard({ note, onOpen }: { note: NoteItem; onOpen: (n: NoteItem) => void }) {
+function NoteCard({
+  note,
+  onOpen,
+  onToggleTask,
+}: {
+  note: NoteItem
+  onOpen: (n: NoteItem) => void
+  onToggleTask: (n: NoteItem) => void
+}) {
+  const task = isTask(note)
+  const isDone = note.status === 'DONE'
+
   return (
-    <button
-      onClick={() => onOpen(note)}
-      className="w-full text-left border border-border bg-surface px-5 py-4 hover:border-accent/30 transition-colors group"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-serif text-fg text-lg leading-snug group-hover:text-accent/80 transition-colors">
+    <div className="border border-border bg-surface hover:border-accent/30 transition-colors group">
+      <div className="flex items-start gap-3 px-5 py-4">
+        {/* Checkbox — solo si es tarea */}
+        {task && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleTask(note)
+            }}
+            className="flex-shrink-0 w-5 h-5 border mt-1 focus:outline-none focus:ring-1 focus:ring-accent transition-all duration-150"
+            style={{
+              borderColor: '#A68966',
+              backgroundColor: isDone ? '#A68966' : 'transparent',
+            }}
+            aria-label={isDone ? `Desmarcar ${note.title}` : `Completar ${note.title}`}
+          >
+            {isDone && (
+              <svg viewBox="0 0 12 12" className="w-full h-full">
+                <polyline
+                  points="2,6 5,9 10,3"
+                  fill="none"
+                  stroke="black"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+        )}
+
+        {/* Cuerpo — abre el editor */}
+        <button
+          onClick={() => onOpen(note)}
+          className="flex-1 min-w-0 text-left"
+        >
+          <h3
+            className={`font-serif text-lg leading-snug group-hover:text-accent/80 transition-colors ${
+              isDone ? 'line-through text-fg-faint' : 'text-fg'
+            }`}
+          >
             {note.title || 'Sin título'}
           </h3>
           {note.content && (
@@ -63,22 +98,54 @@ function NoteCard({ note, onOpen }: { note: NoteItem; onOpen: (n: NoteItem) => v
               {note.content.replace(/\n/g, ' ')}
             </p>
           )}
-        </div>
+        </button>
+
         <div className="flex-shrink-0 text-fg-faint group-hover:text-accent transition-colors mt-0.5">
           <svg viewBox="0 0 12 12" className="w-3 h-3">
-            <polyline points="2,1 10,1 10,9" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            <line x1="10" y1="1" x2="2" y2="9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <polyline
+              points="2,1 10,1 10,9"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <line
+              x1="10"
+              y1="1"
+              x2="2"
+              y2="9"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
           </svg>
         </div>
       </div>
-      <div className="flex items-center gap-2 mt-3 text-[10px] text-fg-faint">
-        <span className="text-[9px] uppercase tracking-wider border border-border px-1.5 py-0.5">
-          {statusBadge(note.status)}
+
+      <div className="flex items-center gap-2 px-5 pb-3 text-[10px] text-fg-faint">
+        <span
+          className={`text-[9px] uppercase tracking-wider border px-1.5 py-0.5 ${
+            task
+              ? 'border-accent/40 text-accent'
+              : 'border-border text-fg-faint'
+          }`}
+        >
+          {task ? 'Tarea' : 'Nota'}
         </span>
+        {task && note.dueDate && (
+          <span>
+            📅{' '}
+            {new Date(note.dueDate).toLocaleDateString('es-AR', {
+              day: '2-digit',
+              month: '2-digit',
+            })}
+          </span>
+        )}
         <span>Actualizada {relativeTime(note.updatedAt)}</span>
         {note.isImportant && <span className="text-accent">★</span>}
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -120,6 +187,39 @@ export default function HubContent({ slug }: { slug: string }) {
       setLoading(false)
     }
   }
+
+  async function handleToggleTask(note: NoteItem) {
+  const next = note.status === 'DONE' ? 'ACTIVE' : 'DONE'
+  // Optimistic update
+  if (data) {
+    setData({
+      ...data,
+      notes: data.notes.map((n) =>
+        n.id === note.id ? { ...n, status: next as NoteStatus } : n
+      ),
+    })
+  }
+  try {
+    const res = await fetch(`/api/notes/${note.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: next }),
+    })
+    if (!res.ok) throw new Error()
+    // Refrescar para mantener relaciones (relationships pueden haber cambiado)
+    await load()
+  } catch {
+    // Rollback
+    if (data) {
+      setData({
+        ...data,
+        notes: data.notes.map((n) =>
+          n.id === note.id ? { ...n, status: note.status } : n
+        ),
+      })
+    }
+  }
+}
 
   useEffect(() => {
     load()
@@ -266,7 +366,12 @@ export default function HubContent({ slug }: { slug: string }) {
       ) : (
         <div className="space-y-3">
           {filteredNotes.map((note) => (
-            <NoteCard key={note.id} note={note} onOpen={setSelectedNote} />
+            <NoteCard
+              key={note.id}
+              note={note}
+              onOpen={setSelectedNote}
+              onToggleTask={handleToggleTask}
+            />
           ))}
         </div>
       ))}
