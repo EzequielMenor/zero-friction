@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import { NOTE_SELECT_WITH_TASK_FLAG, toDomainEnum } from '@/lib/hubs'
+import { NOTE_SELECT_WITH_TASK_FLAG_PROJECT, toDomainEnum } from '@/lib/hubs'
 
 export async function GET(
   _request: Request,
@@ -28,7 +28,7 @@ export async function GET(
     prisma.note.findMany({
       where: { userId: session.userId, domain: domainEnum },
       orderBy: { updatedAt: 'desc' },
-      select: { ...NOTE_SELECT_WITH_TASK_FLAG, domain: true },
+      select: { ...NOTE_SELECT_WITH_TASK_FLAG_PROJECT, domain: true },
     }),
     prisma.noteRelationship.findMany({
       where: {
@@ -39,8 +39,8 @@ export async function GET(
         ],
       },
       include: {
-        sourceNote: { select: { ...NOTE_SELECT_WITH_TASK_FLAG, domain: true } },
-        targetNote: { select: { ...NOTE_SELECT_WITH_TASK_FLAG, domain: true } },
+        sourceNote: { select: { ...NOTE_SELECT_WITH_TASK_FLAG_PROJECT, domain: true } },
+        targetNote: { select: { ...NOTE_SELECT_WITH_TASK_FLAG_PROJECT, domain: true } },
       },
     }),
   ])
@@ -73,12 +73,14 @@ function formatNoteItem(n: Record<string, unknown>) {
     domain: string; tags: string[]; noteStatus: string;
     createdAt: Date; updatedAt: Date;
     task?: { id: string } | null;
+    project?: { id: string; name: string; status: string } | null;
   }
   return {
     id: note.id, userId: note.userId, title: note.title,
     content: note.content, domain: note.domain,
     tags: note.tags ?? [], noteStatus: note.noteStatus,
     hasTask: Boolean(note.task),
+    project: note.project ? { id: note.project.id, name: note.project.name, status: note.project.status } : null,
     createdAt: note.createdAt instanceof Date ? note.createdAt.toISOString() : String(note.createdAt),
     updatedAt: note.updatedAt instanceof Date ? note.updatedAt.toISOString() : String(note.updatedAt),
   }

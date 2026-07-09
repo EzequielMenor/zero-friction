@@ -35,6 +35,23 @@ enum TaskStatus {
   DONE
 }
 
+enum ProjectStatus {
+  IDEATION
+  ACTIVE
+  MAINTENANCE
+  ARCHIVED
+}
+
+enum NoteRelationshipType {
+  RELATED
+  SUPPORTS
+  CONTRADICTS
+  EXAMPLE_OF
+  CONTINUES
+  RELATED_PROJECT
+  REFERENCES
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -44,6 +61,7 @@ model User {
 
   notes         Note[]
   tasks         Task[]
+  projects      Project[]
   relationships NoteRelationship[]
   workouts      Workout[]
   transactions  Transaction[]
@@ -52,6 +70,22 @@ model User {
   coachAdvice   CoachAdvice?
   llmConfig     LLMConfig?
   accounts      Account[]
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      ProjectStatus @default(IDEATION)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  notes Note[]
+
+  @@index([userId, status])
+  @@index([userId, updatedAt])
 }
 
 model Note {
@@ -71,12 +105,17 @@ model Note {
   // pgvector: Storing vector representations for the Zettelkasten Graph
   embedding Unsupported("vector(1536)")?
 
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   task          Task? // NUEVO: relación 1:1 opcional
   incomingLinks NoteRelationship[] @relation("TargetNote")
   outgoingLinks NoteRelationship[] @relation("SourceNote")
+
+  @@index([projectId, noteStatus])
 }
 
 model Task {
@@ -113,6 +152,9 @@ model NoteRelationship {
 
   similarity Float?
   isManual   Boolean @default(false)
+
+  relationshipType NoteRelationshipType @default(RELATED)
+  reason           String?
 
   createdAt DateTime @default(now())
 

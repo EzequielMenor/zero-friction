@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import InboxSection from '@/components/InboxSection'
+import ProjectBadge from '@/components/ProjectBadge'
 import { Toast } from '@/components/Toast'
 import { domainMeta } from '@/lib/hubs'
 import type { Domain } from '@prisma/client'
@@ -31,6 +32,7 @@ interface NoteBrief {
   tags: string[]
   noteStatus: string
   hasTask: boolean
+  project?: { id: string; name: string; status: string } | null
   createdAt: string
   updatedAt: string
 }
@@ -101,7 +103,7 @@ function Skeleton() {
   return (
     <div className="space-y-6 animate-pulse">
       <div className="h-4 w-12 bg-fg-faint/30 rounded" />
-      <div className="h-8 w-64 bg-fg-faint/30 rounded" />
+      <div className="h-8 w-full max-w-64 bg-fg-faint/30 rounded" />
       <div className="h-3 w-48 bg-fg-faint/30 rounded" />
       <div className="mt-10 h-32 border border-border rounded-none bg-surface" />
       <div className="space-y-3">
@@ -464,7 +466,7 @@ export default function Dashboard() {
       {/* Header */}
       <div className="mb-2">
         <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold">HOY</p>
-        <h1 className="font-serif text-4xl text-fg mt-1">
+        <h1 className="font-serif text-3xl md:text-4xl text-fg mt-1">
           {greeting}, {displayName}.
         </h1>
         <p className="text-sm text-fg-faint mt-0.5">{dateStr}</p>
@@ -493,6 +495,9 @@ export default function Dashboard() {
           {focusTask ? (
             <>
               <h2 className="font-serif text-2xl text-fg leading-snug">{focusTask.note.title}</h2>
+              <div className="mt-2 flex items-center gap-2">
+                <ProjectBadge project={focusTask.note.project ?? null} />
+              </div>
               <button
                 onClick={handleReleaseFocus}
                 className="mt-3 text-[11px] text-accent hover:underline"
@@ -539,6 +544,8 @@ export default function Dashboard() {
                     </p>
                   </div>
 
+                  <ProjectBadge project={item.note.project ?? null} />
+
                   {item.task.isImportant && <StarIcon filled />}
 
                   {!isDone && focusTask?.task.id !== item.task.id && (
@@ -575,6 +582,7 @@ export default function Dashboard() {
                   <span className="flex-1 min-w-0 truncate text-[12px] text-fg-subtle italic">
                     {item.note.title}
                   </span>
+                  <ProjectBadge project={item.note.project ?? null} />
                   <span
                     className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 border ${
                       isUndated
@@ -646,11 +654,11 @@ export default function Dashboard() {
           <p className="text-[10px] tracking-[0.2em] text-accent uppercase mb-3">
             SUBSCRIPCIÓN DE HOY
           </p>
-          <div className="border border-border bg-surface px-4 py-3 flex items-center justify-between">
+          <div className="border border-border bg-surface px-4 py-3 flex flex-col md:flex-row items-start md:items-center gap-3">
             <p className="text-sm text-fg">
               ¿Te han cobrado hoy {dueSubscription.name} ({dueSubscription.amount}€)?
             </p>
-            <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => handleSubscriptionConfirm(dueSubscription.id, true)}
                 className="text-[10px] uppercase tracking-wider px-3 py-1.5 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"

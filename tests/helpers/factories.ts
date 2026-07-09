@@ -4,7 +4,8 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import type { Note, Task, Domain } from '@prisma/client'
+import type { Note, Task, Project, Domain } from '@prisma/client'
+import type { ProjectStatus } from '@prisma/client'
 import cuid from 'cuid'
 
 const id = () => cuid()
@@ -16,6 +17,7 @@ export type NoteInput = {
   noteStatus?: 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE'
   tags?: string[]
   suggestedGoals?: string[]
+  projectId?: string | null
 }
 
 export type TaskInput = {
@@ -40,6 +42,7 @@ export async function createNote(userId: string, input: NoteInput = {}): Promise
       noteStatus: input.noteStatus ?? 'DRAFT',
       tags: input.tags ?? [],
       suggestedGoals: input.suggestedGoals ?? [],
+      ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     },
   })
 }
@@ -62,6 +65,7 @@ export async function createNoteWithTask(
         noteStatus: noteInput.noteStatus ?? 'ACTIVE',
         tags: noteInput.tags ?? [],
         suggestedGoals: noteInput.suggestedGoals ?? [],
+        ...(noteInput.projectId !== undefined ? { projectId: noteInput.projectId } : {}),
       },
     })
     const task = await tx.task.create({
@@ -100,10 +104,32 @@ export async function createCompletedTask(
   return createNoteWithTask(userId, input, { status: 'DONE', completedAt: new Date() })
 }
 
+export type ProjectInput = {
+  name?: string
+  description?: string | null
+  status?: ProjectStatus
+}
+
+/**
+ * Crear un Project.
+ */
+export async function createProject(userId: string, input: ProjectInput = {}): Promise<Project> {
+  return prisma.project.create({
+    data: {
+      id: id(),
+      userId,
+      name: input.name ?? 'Test Project',
+      description: input.description ?? null,
+      status: input.status ?? 'IDEATION',
+    },
+  })
+}
+
 /**
  * Limpiar todos los datos de test de un usuario.
  */
 export async function cleanupTestData(userId: string): Promise<void> {
   await prisma.task.deleteMany({ where: { userId } })
   await prisma.note.deleteMany({ where: { userId } })
+  await prisma.project.deleteMany({ where: { userId } })
 }

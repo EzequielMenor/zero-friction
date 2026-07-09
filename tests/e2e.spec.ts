@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { prisma } from '../lib/prisma';
-import { createNote, createNoteWithTask, createFocusedTask, createCompletedTask, cleanupTestData } from './helpers/factories';
+import { createNote, createNoteWithTask, createFocusedTask, createCompletedTask, createProject, cleanupTestData } from './helpers/factories';
+import cuid from 'cuid'
 import fs from 'fs';
 import path from 'path';
 
@@ -518,11 +519,230 @@ test.describe('Zero-Friction E2E Verification', () => {
     await cleanupTestData(user.id);
     await prisma.user.delete({ where: { email } }).catch(() => {});
   });
-});
 
-// Helper: obtener el token de test desde la cookie de Playwright
-async function getTestToken(page: any): Promise<string> {
+  // ── Project Engine E2E (Phase 3) ───────────────────────────────────────
+
+  test('E2E-1: crear proyecto + asignar Note + verificar project en dashboard', async ({ page }) => {
+    const uniqueId = Date.now()
+    const email = `proj-1-${uniqueId}@test.com`
+    const password = 'Password123!'
+    const inviteCode = 'zero-friction-private-2026'
+
+    await registerUser(page, email, password, inviteCode)
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) throw new Error('User not found')
+
+    // Crear proyecto
+    const project = await createProject(user.id, { name: 'E2E Project', status: 'IDEATION' })
+
+    // Crear Note con projectId y Task
+    const { note } = await createNoteWithTask(user.id, {
+      title: 'Task con proyecto',
+      domain: 'PROYECTOS',
+      projectId: project.id,
+    }, { dueDate: new Date() })
+
+    // Verificar via dashboard API
+    const res = await fetch('http://localhost:3000/api/dashboard', {
+      headers: { Cookie: `sb-access-token=${await getTestToken(page)}` },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    // Buscar la task en todayTasks
+    const taskWithProject = body.data.todayTasks.find(
+      (t: any) => t.note.id === note.id
+    )
+    expect(taskWithProject).toBeDefined()
+    expect(taskWithProject.note.project).toEqual({
+      id: project.id,
+      name: 'E2E Project',
+      status: 'IDEATION',
+    })
+
+    await cleanupTestData(user.id)
+    await prisma.user.delete({ where: { email } }).catch(() => {})
+  })
+
+  test('E2E-2: transición inválida → 409 con allowedFromCurrent', async ({ page }) => {
+    const uniqueId = Date.now()
+    const email = `proj-2-${uniqueId}@test.com`
+    const password = 'Password123!'
+    const inviteCode = 'zero-friction-private-2026'
+
+    await registerUser(page, email, password, inviteCode)
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) throw new Error('User not found')
+
+    const project = await createProject(user.id, { status: 'ARCHIVED' })
+
+    // ARCHIVED → MAINTENANCE debería fallar
+    const res = await fetch(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: `sb-access-token=${await getTestToken(page)}`,
+      },
+      body: JSON.stringify({ status: 'MAINTENANCE' }),
+    })
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body.error.code).toBe('invalidTransition')
+    expect(body.error.details.allowedFromCurrent).toEqual(['ACTIVE', 'IDEATION'])
+
+    await cleanupTestData(user.id)
+    await prisma.user.delete({ where: { email } }).catch(() => {})
+  })
+
+  test('E2E-3: cadena completa IDEATION→ACTIVE→MAINTENANCE→ARCHIVED→ACTIVE (revive)', async ({ page }) => {
+    const uniqueId = Date.now()
+    const email = `proj-3-${uniqueId}@test.com`
+    const password = 'Password123!'
+    const inviteCode = 'zero-friction-private-2026'
+
+    await registerUser(page, email, password, inviteCode)
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) throw new Error('User not found')
+
+    const project = await createProject(user.id, { status: 'IDEATION' })
+    const token = await getTestToken(page)
+    const headers = { 'Content-Type': 'application/json', Cookie: `sb-access-token=${token}` }
+    const patch = (status: string) =>
+      fetch(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ status }),
+      })
+
+    // IDEATION → ACTIVE
+    let res = await patch('ACTIVE')
+    expect(res.status).toBe(200)
+
+    // ACTIVE → MAINTENANCE
+    res = await patch('MAINTENANCE')
+    expect(res.status).toBe(200)
+
+    // MAINTENANCE → ARCHIVED
+    res = await patch('ARCHIVED')
+    expect(res.status).toBe(200)
+
+    // ARCHIVED → ACTIVE (revive)
+    res = await patch('ACTIVE')
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.status).toBe('ACTIVE')
+
+    await cleanupTestData(user.id)
+    await prisma.user.delete({ where: { email } }).catch(() => {})
+  })
+
+  test('E2E-4: DELETE proyecto → Note.projectId = null, Task sobrevive', async ({ page }) => {
+    const uniqueId = Date.now()
+    const email = `proj-4-${uniqueId}@test.com`
+    const password = 'Password123!'
+    const inviteCode = 'zero-friction-private-2026'
+
+    await registerUser(page, email, password, inviteCode)
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) throw new Error('User not found')
+
+    const project = await createProject(user.id)
+    const { note, task } = await createNoteWithTask(user.id, {
+      title: 'Note con proyecto',
+      domain: 'PROYECTOS',
+      projectId: project.id,
+    })
+
+    // Eliminar proyecto
+    const res = await fetch(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: `sb-access-token=${await getTestToken(page)}` },
+    })
+    expect(res.status).toBe(204)
+
+    // Verificar Note huérfana
+    const noteAfter = await prisma.note.findUnique({ where: { id: note.id } })
+    expect(noteAfter).not.toBeNull()
+    expect(noteAfter!.projectId).toBeNull()
+
+    // Verificar Task sobrevive
+    const taskAfter = await prisma.task.findUnique({ where: { id: task.id } })
+    expect(taskAfter).not.toBeNull()
+    expect(taskAfter!.noteId).toBe(note.id)
+
+    await cleanupTestData(user.id)
+    await prisma.user.delete({ where: { email } }).catch(() => {})
+  })
+
+  test('E2E-5: DELETE proyecto con embedding y NoteRelationship → persisten', async ({ page }) => {
+    const uniqueId = Date.now()
+    const email = `proj-5-${uniqueId}@test.com`
+    const password = 'Password123!'
+    const inviteCode = 'zero-friction-private-2026'
+
+    await registerUser(page, email, password, inviteCode)
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) throw new Error('User not found')
+
+    const project = await createProject(user.id)
+
+    // Crear Note con embedding (usando SQL directo para pgvector)
+    const note = await prisma.note.create({
+      data: {
+        id: cuid(),
+        userId: user.id,
+        title: 'Note con embedding',
+        content: 'Contenido para vector',
+        domain: 'PROYECTOS',
+        noteStatus: 'ACTIVE',
+        projectId: project.id,
+      },
+    })
+
+    // Insertar embedding via SQL
+    const zeroVector = Array(1536).fill(0).join(',')
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Note" SET embedding = '[${zeroVector}]'::vector WHERE id = '${note.id}'`
+    )
+
+    // Crear NoteRelationship
+    const note2 = await createNote(user.id, { title: 'Related note', domain: 'PROYECTOS' })
+    await prisma.noteRelationship.create({
+      data: {
+        userId: user.id,
+        sourceNoteId: note.id,
+        targetNoteId: note2.id,
+        relationshipType: 'RELATED',
+      },
+    })
+
+    // Eliminar proyecto
+    const res = await fetch(`http://localhost:3000/api/projects/${project.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: `sb-access-token=${await getTestToken(page)}` },
+    })
+    expect(res.status).toBe(204)
+
+    // Verificar embedding persiste (1536 dims)
+    const dims: any[] = await prisma.$queryRawUnsafe(
+      `SELECT vector_dims(embedding) as dims FROM "Note" WHERE id = '${note.id}'`
+    )
+    expect(dims[0]?.dims).toBe(1536)
+
+    // Verificar NoteRelationship persiste
+    const rel = await prisma.noteRelationship.findFirst({
+      where: { sourceNoteId: note.id, targetNoteId: note2.id },
+    })
+    expect(rel).not.toBeNull()
+
+    // Cleanup manual (notes + project ya borrado)
+    await prisma.noteRelationship.deleteMany({ where: { userId: user.id } })
+    await cleanupTestData(user.id)
+    await prisma.user.delete({ where: { email } }).catch(() => {})
+  })
+
+  // Helper: obtener el token de test desde la cookie de Playwright
+  async function getTestToken(page: any): Promise<string> {
   const cookies = await page.context().cookies();
   const tokenCookie = cookies.find((c: any) => c.name === 'sb-access-token');
   return tokenCookie?.value ?? '';
 }
+});

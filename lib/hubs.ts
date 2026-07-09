@@ -74,3 +74,38 @@ export const NOTE_SELECT_WITH_TASK = {
   ...NOTE_SELECT_NEW,
   task: { select: TASK_SELECT },
 } as const
+
+// ─── Selectores de Project (Phase 3) ─────────────────────────────────────
+
+/** Select ligero de Project para embeber en otros items. */
+export const PROJECT_BRIEF_SELECT = {
+  id: true,
+  name: true,
+  status: true,
+} as const
+
+/** Select para Note con project anidado (3 campos). */
+export const NOTE_SELECT_WITH_PROJECT = {
+  ...NOTE_SELECT_NEW,
+  project: { select: PROJECT_BRIEF_SELECT },
+} as const
+
+/** Alias para mantener compatibilidad con la spec. */
+export const NOTE_SELECT_NEW_WITH_PROJECT = NOTE_SELECT_WITH_PROJECT
+
+/** Select para Note con flag hasTask + project (para hubs, notes list). */
+export const NOTE_SELECT_WITH_TASK_FLAG_PROJECT = {
+  ...NOTE_SELECT_WITH_PROJECT,
+  task: { select: { id: true } },
+} as const
+
+/** Select completo de Project (para endpoints CRUD). */
+export const PROJECT_SELECT = {
+  id: true,
+  userId: true,
+  name: true,
+  description: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} as const

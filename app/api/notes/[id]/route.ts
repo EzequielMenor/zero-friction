@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import { NOTE_SELECT_WITH_TASK_FLAG } from '@/lib/hubs'
+import { NOTE_SELECT_WITH_TASK_FLAG_PROJECT } from '@/lib/hubs'
+import { findOwnProjectOrThrow, buildInvalidProjectIdResponse, logProjectEvent } from '@/lib/projects'
+import type { InvalidProjectIdError } from '@/lib/types/project'
 import type { Domain } from '@prisma/client'
 
 const VALID_DOMAINS: Domain[] = ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS']
@@ -28,7 +30,7 @@ export async function GET(
   const note = await prisma.note.findFirst({
     where: { id, userId: session.userId },
     select: {
-      ...NOTE_SELECT_WITH_TASK_FLAG,
+      ...NOTE_SELECT_WITH_TASK_FLAG_PROJECT,
       task: {
         select: {
           id: true, noteId: true, userId: true, status: true,
@@ -101,6 +103,26 @@ export async function PATCH(
     data.domain = domain
   }
 
+  // Validar projectId opcional
+  if (body.projectId !== undefined) {
+    if (body.projectId === null) {
+      data.projectId = null
+      logProjectEvent('note.project.unassigned', { userId: session.userId, noteId: id, previousProjectId: existing.projectId ?? null })
+    } else {
+      try {
+        const project = await findOwnProjectOrThrow(String(body.projectId), session.userId)
+        data.projectId = project.id
+        logProjectEvent('note.project.assigned', { userId: session.userId, noteId: id, projectId: project.id })
+      } catch (err) {
+        const error = err as InvalidProjectIdError
+        if (error.code === 'invalid_projectId_format' || error.code === 'invalid_projectId_not_found' || error.code === 'invalid_projectId_forbidden') {
+          return NextResponse.json(buildInvalidProjectIdResponse(error).body, { status: 400 })
+        }
+        throw err
+      }
+    }
+  }
+
   // Rechazar campos de Task en este endpoint
   if (body.dueDate !== undefined || body.isImportant !== undefined || body.status !== undefined) {
     return NextResponse.json(
@@ -121,7 +143,7 @@ export async function PATCH(
 
   const updated = await prisma.note.findUnique({
     where: { id },
-    select: NOTE_SELECT_WITH_TASK_FLAG,
+    select: NOTE_SELECT_WITH_TASK_FLAG_PROJECT,
   })
 
   return NextResponse.json({
@@ -168,6 +190,7 @@ function formatNoteItem(note: Record<string, unknown>) {
     noteStatus: string;
     createdAt: Date; updatedAt: Date;
     task?: Record<string, unknown> | null;
+    project?: { id: string; name: string; status: string } | null;
   }
   return {
     id: n.id,
@@ -179,6 +202,7 @@ function formatNoteItem(note: Record<string, unknown>) {
     suggestedGoals: n.suggestedGoals ?? [],
     noteStatus: n.noteStatus,
     hasTask: Boolean(n.task),
+    project: n.project ? { id: n.project.id, name: n.project.name, status: n.project.status } : null,
     createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : String(n.createdAt),
     updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : String(n.updatedAt),
     task: n.task ? {

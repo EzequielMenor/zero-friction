@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
+import { PROJECT_BRIEF_SELECT } from '@/lib/hubs'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
 
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
       updatedAt: true,
       userId: true,
       task: { select: { id: true, isImportant: true, dueDate: true, status: true } },
+      project: { select: PROJECT_BRIEF_SELECT },
     },
     orderBy: { createdAt: 'desc' },
     take: 8,
@@ -49,6 +51,7 @@ export async function GET(req: NextRequest) {
       hasTask: Boolean(n.task),
       isImportant: n.task?.isImportant ?? false,
       dueDate: n.task?.dueDate?.toISOString() ?? null,
+      project: n.project ? { id: n.project.id, name: n.project.name, status: n.project.status } : null,
       createdAt: n.createdAt.toISOString(),
       updatedAt: n.updatedAt.toISOString(),
     })),

@@ -18,6 +18,8 @@ export interface NoteItem {
   suggestedGoals: string[]
   noteStatus: 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE'
   hasTask: boolean
+  projectId?: string // NUEVO Phase 3
+  project?: ProjectBrief | null
   createdAt: string
   updatedAt: string
 }
@@ -31,14 +33,18 @@ export interface NoteDraft {
   tags?: string[]
 }
 
-/** Note que incluye su Task asociada (si existe). */
+/** Note que incluye su Task asociada (si existe).
+ *  project puede ser null por: (1) nunca tuvo proyecto, (2) perdió proyecto por cascade de un Project borrado. */
 export interface NoteWithTask extends NoteItem {
   task: TaskItem | null
+  project?: ProjectBrief | null
 }
 
 /** Resultado de búsqueda (usado por CaptureOverlay). */
 export interface SearchResultItem extends NoteItem {
   task: Pick<TaskItem, 'id' | 'isImportant' | 'dueDate' | 'status'> | null
+  project?: ProjectBrief | null
 }
 
 import type { TaskItem } from './task'
+import type { ProjectBrief } from './project'

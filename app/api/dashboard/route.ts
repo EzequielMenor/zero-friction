@@ -1,11 +1,10 @@
 // GET /api/dashboard — datos completos del dashboard (6 secciones).
-// Renombrado desde /api/today.
 
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import { NOTE_SELECT_NEW, NOTE_SELECT_WITH_TASK_FLAG } from '@/lib/hubs'
+import { NOTE_SELECT_NEW_WITH_PROJECT, NOTE_SELECT_WITH_TASK_FLAG } from '@/lib/hubs'
 
 export async function GET(): Promise<NextResponse> {
   const token = (await cookies()).get(AUTH_COOKIE)?.value
@@ -39,7 +38,7 @@ export async function GET(): Promise<NextResponse> {
         id: true, noteId: true, userId: true, status: true,
         dueDate: true, isImportant: true, focusedAt: true,
         completedAt: true, createdAt: true, updatedAt: true,
-        note: { select: NOTE_SELECT_NEW },
+        note: { select: NOTE_SELECT_NEW_WITH_PROJECT },
       },
     }),
 
@@ -55,7 +54,7 @@ export async function GET(): Promise<NextResponse> {
         id: true, noteId: true, userId: true, status: true,
         dueDate: true, isImportant: true, focusedAt: true,
         completedAt: true, createdAt: true, updatedAt: true,
-        note: { select: NOTE_SELECT_NEW },
+        note: { select: NOTE_SELECT_NEW_WITH_PROJECT },
       },
     }),
 
@@ -71,7 +70,7 @@ export async function GET(): Promise<NextResponse> {
         id: true, noteId: true, userId: true, status: true,
         dueDate: true, isImportant: true, focusedAt: true,
         completedAt: true, createdAt: true, updatedAt: true,
-        note: { select: NOTE_SELECT_NEW },
+        note: { select: NOTE_SELECT_NEW_WITH_PROJECT },
       },
     }),
 
@@ -175,12 +174,14 @@ export async function GET(): Promise<NextResponse> {
       id: string; userId: string; title: string; content: string;
       domain: string; tags: string[]; noteStatus: string;
       createdAt: Date; updatedAt: Date;
+      project: { id: string; name: string; status: string } | null;
     }
     return {
       id: note.id, userId: note.userId, title: note.title,
       content: note.content, domain: note.domain,
       tags: note.tags ?? [], noteStatus: note.noteStatus,
       hasTask: true, // por definición, un TodayItem tiene Task
+      project: note.project ? { id: note.project.id, name: note.project.name, status: note.project.status } : null,
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
     }

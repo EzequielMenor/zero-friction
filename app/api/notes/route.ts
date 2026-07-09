@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import { NOTE_SELECT_WITH_TASK_FLAG, TASK_SELECT } from '@/lib/hubs'
+import { NOTE_SELECT_WITH_TASK_FLAG_PROJECT, TASK_SELECT } from '@/lib/hubs'
+import { findOwnProjectOrThrow, buildInvalidProjectIdResponse, logProjectEvent } from '@/lib/projects'
+import { CUID_REGEX } from '@/lib/types/project'
+import type { InvalidProjectIdError } from '@/lib/types/project'
 import type { Domain } from '@prisma/client'
 
 // ─── Auth helper ───────────────────────────────────────────────────────────────
@@ -50,6 +53,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const tags = Array.isArray(body?.tags) ? body.tags.map(String) : []
     const suggestedGoals = Array.isArray(body?.suggestedGoals) ? body.suggestedGoals.map(String) : []
 
+    // Validar projectId opcional
+    let resolvedProjectId: string | null = null
+    const rawProjectId = body?.projectId
+    if (rawProjectId !== undefined && rawProjectId !== null) {
+      try {
+        const project = await findOwnProjectOrThrow(String(rawProjectId), session.userId)
+        resolvedProjectId = project.id
+      } catch (err) {
+        const error = err as InvalidProjectIdError
+        if (error.code === 'invalid_projectId_format' || error.code === 'invalid_projectId_not_found' || error.code === 'invalid_projectId_forbidden') {
+          return NextResponse.json(buildInvalidProjectIdResponse(error).body, { status: 400 })
+        }
+        throw err
+      }
+    }
+
     // Task fields (opcionales para creación directa desde calendario/panel)
     const hasTaskFields =
       (typeof body?.dueDate === 'string' && body.dueDate.length > 0) ||
@@ -70,8 +89,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           noteStatus: 'DRAFT', // FIX-J5: siempre DRAFT por defecto
           tags,
           suggestedGoals,
+          ...(resolvedProjectId !== null ? { projectId: resolvedProjectId } : {}),
         },
-        select: NOTE_SELECT_WITH_TASK_FLAG,
+        select: NOTE_SELECT_WITH_TASK_FLAG_PROJECT,
       })
 
       let task: Record<string, unknown> | null = null
@@ -92,6 +112,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
 
     const formatted = formatNoteItem({ ...result.note, task: result.task } as Record<string, unknown>)
+
+    if (resolvedProjectId) {
+      logProjectEvent('note.project.assigned', { userId: session.userId, noteId: result.note.id, projectId: resolvedProjectId })
+    }
 
     return NextResponse.json(
       {
@@ -183,13 +207,11 @@ export async function GET(
       noteStatus: noteStatus as 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE',
     },
     orderBy: { createdAt: 'desc' },
-    select: NOTE_SELECT_WITH_TASK_FLAG,
+    select: NOTE_SELECT_WITH_TASK_FLAG_PROJECT,
   })
 
   return NextResponse.json(notes.map(formatNoteItem))
 }
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatNoteItem(note: Record<string, unknown>) {
   const n = note as {
@@ -197,6 +219,7 @@ function formatNoteItem(note: Record<string, unknown>) {
     domain: string; tags: string[]; suggestedGoals: string[];
     noteStatus: string; createdAt: Date; updatedAt: Date;
     task?: { id: string } | null;
+    project?: { id: string; name: string; status: string } | null;
   }
   return {
     id: n.id,
@@ -208,6 +231,7 @@ function formatNoteItem(note: Record<string, unknown>) {
     suggestedGoals: n.suggestedGoals ?? [],
     noteStatus: n.noteStatus,
     hasTask: Boolean(n.task),
+    project: n.project ? { id: n.project.id, name: n.project.name, status: n.project.status } : null,
     createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : n.createdAt,
     updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : n.updatedAt,
   }
