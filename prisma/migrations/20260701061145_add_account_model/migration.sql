@@ -38,7 +38,7 @@ DROP INDEX "Habit_userId_idx";
 DROP INDEX "HabitLog_habitId_idx";
 
 -- DropIndex
-DROP INDEX "LLMConfig_userId_idx";
+DROP INDEX IF EXISTS "LLMConfig_userId_idx";
 
 -- DropIndex
 DROP INDEX "Note_userId_idx";
@@ -67,10 +67,15 @@ DROP INDEX "Workout_userId_idx";
 -- DropIndex
 DROP INDEX "WorkoutSet_workoutId_idx";
 
--- AlterTable
-ALTER TABLE "LLMConfig" ALTER COLUMN "createdAt" SET DATA TYPE TIMESTAMP(3),
-ALTER COLUMN "updatedAt" DROP DEFAULT,
-ALTER COLUMN "updatedAt" SET DATA TYPE TIMESTAMP(3);
+-- AlterTable (condicional: tabla puede no existir aún en replay limpio)
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_class WHERE relname = 'LLMConfig' AND relkind = 'r') THEN
+    ALTER TABLE "LLMConfig" ALTER COLUMN "createdAt" SET DATA TYPE TIMESTAMP(3),
+    ALTER COLUMN "updatedAt" DROP DEFAULT,
+    ALTER COLUMN "updatedAt" SET DATA TYPE TIMESTAMP(3);
+  END IF;
+END $$;
 
 -- AlterTable
 ALTER TABLE "Transaction" ADD COLUMN     "accountId" TEXT;

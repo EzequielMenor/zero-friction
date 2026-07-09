@@ -27,8 +27,8 @@ HTTP request ──▶│ proxy.ts (Next 16 proxy, formerly middleware)  │  La
 ```
 
 - **Layer 1 — `proxy.ts`**. Runs on every non-static request. Whitelist: `/login`, `/signup`, `/api/auth/login`, `/api/auth/signup`, `/api/auth/logout`. `/api/auth/me` is special-cased: pass-through but the route returns 401 if there is no token (so the JSON contract doesn't get replaced with an HTML redirect). Everything else with a missing/invalid cookie → redirect to `/login?redirect=<original>`.
-- **Layer 2 — API handlers**. Each handler reads `AUTH_COOKIE` itself and calls `verifySession` from `lib/auth.ts`. Returns `401 Unauthorized` directly. Server components use `await cookies()` and `verifySession` (e.g. `app/api/today/route.ts`, `app/api/graph/route.ts`).
-- **Layer 3 — data scoping**. Every Prisma query uses `where: { userId: session.userId }` (or `habit: { userId }` for indirect joins). There is no role model — there is exactly one user at a time, but the per-row filter is the load-bearing safety net.
+- **Layer 2 — API handlers**. Each handler reads `AUTH_COOKIE` itself and calls `verifySession` from `lib/auth.ts`. Returns `401 Unauthorized` directly. Server components use `await cookies()` and `verifySession` (e.g. `app/api/dashboard/route.ts`, `app/api/graph/route.ts`).
+- **Layer 3 — data scoping**. Every Prisma query uses `where: { userId: session.userId }` (or `habit: { userId }` for indirect joins). For `Project` ownership, `lib/projects.ts::findOwnProjectOrThrow` enforces cuid shape + `userId` match before any `projectId` is attached to a `Note`. There is no role model — there is exactly one user at a time, but the per-row filter is the load-bearing safety net.
 
 Cookie options (`lib/auth.ts::cookieOptions()`):
 
@@ -72,8 +72,10 @@ Single source of truth: `prisma/schema.prisma`. Datasource is PostgreSQL with no
 | Model | Purpose | Notable indices / uniques |
 |-------|---------|---------------------------|
 | `User` | One row per account | `email @unique` |
-| `Note` | Domain-tagged text record (ESPIRITUAL/PERSONAL/APRENDIZAJE/PROYECTOS/REGISTROS) | `embedding Unsupported("vector(1536)")?` (raw SQL only) |
-| `NoteRelationship` | Source/target similarity link between Notes | `@@unique([sourceNoteId, targetNoteId])` |
+| `Project` | User-owned, status-tagged container for `Note`s | `ProjectStatus @default(IDEATION)`, `@@index([userId, status])`, `@@index([userId, updatedAt])` |
+| `Note` | Domain-tagged knowledge record (ESPIRITUAL/PERSONAL/APRENDIZAJE/PROYECTOS/REGISTROS) | `embedding Unsupported("vector(1536)")?`; `noteStatus NoteStatusNew @default(DRAFT)`; optional `projectId` (`onDelete: SetNull`); `@@index([projectId, noteStatus])` |
+| `Task` | Execution surface — 1:1 optional with a Note (only created for `task` intent captures). Holds `dueDate`, `isImportant`, `focusedAt`, `completedAt`. | `noteId @unique` (one Task per Note), `Task_status @default(OPEN)`, `@@index([userId, status])`, `@@index([userId, dueDate])`, plus DB-level `CHECK (status <> 'DONE' OR completedAt IS NOT NULL)` and partial unique `Task_one_focus_per_user` |
+| `NoteRelationship` | Source/target typed link between Notes | `@@unique([sourceNoteId, targetNoteId])`, `relationshipType NoteRelationshipType @default(RELATED)` |
 | `Workout` | One row per user-day | `@@unique([userId, date])` |
 | `WorkoutSet` | One row per set inside a workout | — |
 | `Account` | Bank/wallet | `currency @default("EUR")` |
@@ -86,12 +88,18 @@ Single source of truth: `prisma/schema.prisma`. Datasource is PostgreSQL with no
 
 ### Cascade rules
 
-Every `relation(fields: [X], references: [Y], onDelete: Cascade)` from a child model → its parent. Deleting a `User` removes all their data.
+Every `relation(fields: [X], references: [Y], onDelete: Cascade)` from a child model → its parent. Deleting a `User` removes all their data, including their `Project`s. Two notable exceptions:
+
+- `Note.projectId` is `SetNull`, not `Cascade` — the Second Brain (Note + embeddings + relationships) survives a project deletion by design.
+- `Task.noteId` is `Cascade` — deleting a Note drops its Task (it would be orphaned anyway).
 
 ### Enums
 
 - `Domain` — five life domains, see `openwiki/hubs-and-domains.md`.
-- `NoteStatus` — `DRAFT | NEEDS_REVIEW | ACTIVE | IN_PROGRESS | DONE`. The DRAFT state is the placeholder created during capture; `enrichDraftNote` (`lib/parse-capture.ts`) moves it to ACTIVE in a CAS-gated update.
+- `NoteStatus` (renamed from `NoteStatusNew` after Migration B) — `DRAFT | NEEDS_REVIEW | ACTIVE`. A Note starts as `DRAFT` in the create path; on AI classification success it becomes `ACTIVE`, on AI failure the process route promotes it to `NEEDS_REVIEW`.
+- `TaskStatus` — `OPEN | DONE`. `DONE` requires `completedAt != null` (DB CHECK).
+- `ProjectStatus` — `IDEATION | ACTIVE | MAINTENANCE | ARCHIVED`. DAG (and "revive" arcs) live in `lib/projects.ts::PROJECT_TRANSITIONS`; transitions are CAS-gated in `PATCH /api/projects/[id]`.
+- `NoteRelationshipType` — `RELATED | SUPPORTS | CONTRADICTS | EXAMPLE_OF | CONTINUES | RELATED_PROJECT | REFERENCES`. Classification is decided by an LLM reranker in `lib/parse-capture.ts`, not by pgvector similarity alone.
 
 ### pgvector — vector(1536)
 

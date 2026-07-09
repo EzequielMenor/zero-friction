@@ -8,10 +8,12 @@ import {
   createEmbedding,
   findSimilarNotes,
   createRelationships,
+  rerankNoteRelationships,
   createTransactionFromParsed,
   createOrToggleHabitLogFromParsed,
   createWorkoutFromParsed,
   type ParsedCapture,
+  type NoteRelationshipTypeLLM,
 } from '@/lib/parse-capture'
 
 // ─── Auth helper ───────────────────────────────────────────────────────────────
@@ -119,9 +121,7 @@ export async function POST(
 
   // ── FASE 2b: Default — enrich Note + (opcional) crear Task ───────────────
   const embedding = await createEmbedding(parsed.cleanedContent, session.userId)
-  const isExecutable =
-    (parsed.metadata.isImportant === true || parsed.metadata.dueDate != null) &&
-    parsed.domain !== 'ESPIRITUAL'
+  const isExecutable = parsed.intent === 'task'
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -175,7 +175,7 @@ export async function POST(
     )
   }
 
-  // ── FASE 3: Post-tx — embedding + relationships ──────────────────────────
+  // ── FASE 3: Post-tx — embedding + relationships (LLM reranking) ────────────
   try {
     await prisma.$executeRaw`
       UPDATE "Note"
@@ -183,9 +183,39 @@ export async function POST(
       WHERE id = ${noteId} AND "noteStatus" = 'ACTIVE'
     `
 
-    const similar = await findSimilarNotes(session.userId, noteId, embedding)
-    if (similar.length > 0) {
-      await createRelationships(session.userId, noteId, similar)
+    const candidates = await findSimilarNotes(session.userId, noteId, embedding)
+    if (candidates.length > 0) {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 20_000)
+      try {
+        const reranked = await rerankNoteRelationships(
+          {
+            id: noteId,
+            title: parsed.cleanedTitle,
+            content: parsed.cleanedContent,
+            domain: parsed.domain,
+            intent: parsed.intent,
+            tags: parsed.tags,
+          },
+          candidates,
+          session.userId,
+          controller.signal
+        )
+        if (reranked.length > 0) {
+          await createRelationships(
+            session.userId,
+            noteId,
+            reranked.map((r) => ({
+              targetNoteId: r.targetNoteId,
+              similarity: r.similarity,
+              relationshipType: r.relationshipType,
+              reason: r.reason,
+            }))
+          )
+        }
+      } finally {
+        clearTimeout(timeout)
+      }
     }
   } catch (err) {
     console.error('[process] post-tx embedding/rels failed for note', noteId, err)

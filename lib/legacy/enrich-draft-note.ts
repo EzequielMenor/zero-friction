@@ -39,7 +39,14 @@ export async function enrichDraftNote(
 
   const similar = await findSimilarNotes(userId, noteId, embedding)
   if (similar.length > 0) {
-    await createRelationships(userId, noteId, similar)
+    await createRelationships(
+      userId,
+      noteId,
+      similar.map((n) => ({
+        targetNoteId: n.id,
+        similarity: n.similarity,
+      }))
+    )
   }
 
   return prisma.note.findUnique({ where: { id: noteId } })

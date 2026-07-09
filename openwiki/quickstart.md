@@ -16,9 +16,10 @@ The full Spanish specification lives in `/zero-friction-spec.md` at the repo roo
 
 - **Capture in < 2 seconds.** Floating overlay (`Cmd/Ctrl+K` on desktop, floating FAB on mobile), with voice transcription and a dynamic auto-send countdown.
 - **Five life domains, one physical model.** Notes have exactly one `Domain` (ESPIRITUAL, PERSONAL, APRENDIZAJE, PROYECTOS, REGISTROS). Cross-domain links live in `NoteRelationship` and are shown in collapsible side-panels inside each hub.
-- **"Today" as execution surface.** A dashboard (`app/(app)/page.tsx`) listing Focus + Today's tasks + Maintenance + Habits + Resurgence + Subscription validation.
+- **"Today" as execution surface.** A dashboard (`app/(app)/page.tsx`) listing Focus + Today's tasks + Maintenance + Habits + Resurgence + Subscription validation. Data comes from `GET /api/dashboard`; the legacy `/api/today` route was removed when **Note was split into `Note` (knowledge) + `Task` (execution)**, so the Today rows are now `Task`s (1:1 with a Note) rather than bare notes.
 - **"Hubs" as deep-work surfaces.** Each domain has an isolated hub view (`/hubs/[domain]`) where the sidebar and other-domain noise disappear.
-- **"Mente" as a semantic graph.** A full-screen `d3-force` canvas drawing all notes + their similarity links (`/hubs/mente`).
+- **"Mente" as a semantic graph.** A full-screen `d3-force` canvas drawing all notes + their typed relationships (`RELATED`, `SUPPORTS`, `CONTRADICTS`, `EXAMPLE_OF`, `CONTINUES`, `RELATED_PROJECT`, `REFERENCES`) at `/hubs/mente`.
+- **Projects as semantic containers.** A `Project` is a user-owned, status-tagged bag of `Note`s (`IDEATION` → `ACTIVE` → `MAINTENANCE` → `ARCHIVED`). Notes get an optional `projectId`; tasks inherit it via the `Task → Note → Project` join. Badged on Today and Hub cards via `components/ProjectBadge.tsx`.
 - **Registros subdomains.** Fuerza (gym CSV import), Finanzas (cycles around payroll), Hábitos (streak + heatmap) inside the Registros hub.
 
 ---
@@ -49,7 +50,7 @@ The full Spanish specification lives in `/zero-friction-spec.md` at the repo roo
 .
 ├── app/                          # Next.js App Router
 │   ├── (app)/                    # Authenticated route group — sidebar lives in root layout
-│   │   ├── page.tsx              # "Today" dashboard
+│   │   ├── page.tsx              # "Today" dashboard (fetches /api/dashboard)
 │   │   ├── calendar/page.tsx
 │   │   ├── settings/page.tsx
 │   │   └── hubs/
@@ -59,24 +60,37 @@ The full Spanish specification lives in `/zero-friction-spec.md` at the repo roo
 │   ├── (auth)/                   # Centred, no sidebar
 │   │   ├── login/page.tsx
 │   │   └── signup/page.tsx
-│   ├── api/                      # 17 route handlers (see architecture.md)
+│   ├── api/                      # Route handlers — auth, capture, notes, tasks, projects,
+│   │                             # dashboard, calendar, graph, hubs, habits, registros,
+│   │                             # accounts, subscriptions, search, settings, events (see architecture.md)
 │   ├── globals.css               # CSS-variable token system
 │   ├── layout.tsx                # Root layout — ThemeProvider + NavMenu + CaptureOverlay + SW registrar
 │   └── manifest.ts               # PWA manifest
-├── components/                   # CaptureOverlay, NavMenu, NotePanel, ThemeProvider, Toast, icons, pwa/
-├── lib/                          # auth, prisma, llm, hubs, draft-events, parse-capture
+├── components/                   # CaptureOverlay, NavMenu, NotePanel, ProjectBadge,
+│                                 # ThemeProvider, Toast, icons, pwa/
+├── lib/
+│   ├── auth, prisma, llm, hubs, draft-events, parse-capture
+│   ├── projects.ts               # Pure logic — DAG of status transitions, mappers, ownership
+│   ├── rate-limit.ts             # In-memory rate limiter (single-user assumption)
+│   ├── types/                    # Single source of truth for NoteItem, TaskItem, ProjectItem, …
+│   └── legacy/                   # Deprecated helpers (kept for back-compat — see enricht-draft-note.ts)
 ├── prisma/
-│   ├── schema.prisma             # 12 models — see auth-and-data.md
-│   └── migrations/               # Five chronologically-numbered migrations
-├── tests/e2e.spec.ts             # One end-to-end Playwright spec
+│   ├── schema.prisma             # 14 models — see auth-and-data.md
+│   ├── migrations/               # Chronologically-numbered migrations
+│   └── backfill-notes-to-tasks.ts  # One-off Migration A companion
+├── tests/
+│   ├── e2e.spec.ts               # Playwright end-to-end suite
+│   ├── helpers/                  # factories.ts, test-setup.ts (vitest)
+│   └── unit/                     # vitest run for pure logic
 ├── proxy.ts                      # Next 16 proxy — auth gate
 ├── next.config.ts                # Security headers + SW content-type
 ├── playwright.config.ts
+├── vitest.config.ts
 ├── prisma.config.ts
 ├── tailwind.config.ts            # Tailwind v4 reads tokens from globals.css via @theme inline
 ├── zero-friction-spec.md         # ← canonical product spec (Spanish)
-├── docs/superpowers/             # In-repo specs + plans per feature
-└── openspec/                     # An additional change-management directory (see testing-and-operations.md)
+├── docs/sdd/{active,completed}/  # Per-feature design + retrofit files (see testing-and-operations.md)
+└── README.md                     # Now leads with the Note + Task model + ADR link
 ```
 
 ---
@@ -107,7 +121,10 @@ These are non-obvious rules agents should respect before writing code.
 - **Per-user LLM config + env fallback.** `lib/llm.ts` reads from `LLMConfig` DB table first, then falls back to env. API key on the wire is masked (`••••••••`) so the UI cannot leak secrets.
 - **In-process SSE only.** The draft-morphing events bus is a single-process `EventEmitter`. If/when deploying multi-instance, swap to a polled `pending_notifications` table — this is the documented upgrade path in `lib/draft-events.ts`.
 - **Auth gate is server-side.** Every API route reads the cookie with `AUTH_COOKIE` and verifies with `verifySession`. Don't bypass with client flags.
-- **One DRAFT → ACTIVE race guard.** `enrichDraftNote` in `lib/parse-capture.ts` uses a CAS `updateMany` so two concurrent `process` requests can't both succeed.
+- **One DRAFT → ACTIVE race guard.** `POST /api/notes/[id]/process` (`app/api/notes/[id]/process/route.ts`) uses a CAS `updateMany` on `noteStatus = 'DRAFT'` so two concurrent `process` requests can't both succeed. On AI failure the same CAS promotes the note to `NEEDS_REVIEW` instead.
+- **Task is unique to its Note.** `Task.noteId` is `UNIQUE` and `onDelete: Cascade`; the DB also enforces a partial unique (`Task_one_focus_per_user`) so at most one task per user may have `focusedAt != null`.
+- **Project is informational.** `Note.projectId` is `SetNull` on Project delete — the Second Brain (Note + embeddings + relationships) survives a project deletion. Tasks have no `projectId`; the UI derives project via `Task → Note → Project`.
+- **Rate-limited routes.** Sensitive POSTs (`/api/projects`) go through `lib/rate-limit.ts` (in-memory). On multi-instance deploys, swap to Redis or Vercel KV.
 
 ---
 

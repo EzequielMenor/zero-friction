@@ -30,17 +30,27 @@ This is a Next.js 16 App Router project. Two parallel concepts matter for every 
 /login, /signup                    Centred auth pages          app/(auth)/login/page.tsx, signup/page.tsx
 
 /api/auth/{login,signup,logout,me}
-/api/capture                       Text or audio capture
-/api/notes/[id]                    CRUD + process / accept-goal / reflection
-/api/today                         Dashboard payload
-/api/calendar
-/api/graph                         Nodes + relationships for Mente
-/api/hubs/[domain]                 Per-hub note feed
+/api/capture                       Text or audio capture (create Note DRAFT + process inline)
+/api/notes                         POST: structured create (Note [+ Task]); path /bulk not present
+/api/notes/[id]                    GET / PATCH (drag dueDate/isImportant onto Task) / DELETE
+/api/notes/[id]/process            Tri-phase process: LLM classify → Task or Note → DRAFT cleanup
+/api/notes/[id]/accept-goal        Promote an ESPIRITUAL.suggestedGoals[] into PROYECTOS
+/api/notes/[id]/reflection         Append a reflection to the Note content
+/api/tasks/[id]                    PATCH Task (dueDate / isImportant)
+/api/tasks/[id]/focus              POST: set focusedAt (clears previous focus for the same user)
+/api/tasks/[id]/unfocus            POST: clear focusedAt
+/api/tasks/[id]/complete           POST: mark Task OPEN → DONE (+ completedAt)
+/api/projects                      GET (filter ?status=…); POST (rate-limited)
+/api/projects/[id]                 GET / PATCH (CAS-gated transition) / DELETE (SetNull on Note)
+/api/dashboard                     6-section Today payload (replaces /api/today)
+/api/calendar                      Tasks-with-Note join for the calendar
+/api/graph                         Nodes + relationships (incl. relationshipType + reason) for Mente
+/api/hubs/[domain]                 Per-hub Note feed + relatedItems from NoteRelationship
 /api/habits
 /api/registros/{finanzas,fuerza,habitos}
 /api/accounts                      CRUD bank-account records
 /api/subscriptions/[id]            Subscriptions CRUD
-/api/search?q=…                    Case-insensitive title/content search
+/api/search?q=…                    Case-insensitive title/content search (now with project brief)
 /api/settings                      Per-user LLM config (keys masked)
 /api/settings/models, /api/settings/test  Model discovery + chat-ping
 /api/events                        SSE stream — draft-morphing notifications
@@ -89,6 +99,10 @@ Migrations live in `prisma/migrations/<timestamp>_name/` and were generated chro
 20260630174500_add_coach_advice
 20260701061145_add_account_model
 20260701072709_add_user_llm_config
+20260708120000_split_note_task          # Migration A: Task table + noteStatus (additive)
+20260708120100_drop_legacy_note_fields  # Migration B: drop status/dueDate/isImportant, add CHECK + partial unique
+20260709120000_add_note_relationship_metadata  # NoteRelationship.relationshipType + reason
+20260709130000_add_project              # Project table + Note.projectId (SetNull)
 ```
 
 `pnpm build` runs `prisma generate && next build` so CI cannot ship a stale client.
@@ -98,9 +112,13 @@ Migrations live in `prisma/migrations/<timestamp>_name/` and were generated chro
 - `lib/prisma.ts` — singleton client.
 - `lib/auth.ts` — JWT sign/verify, bcrypt hash/verify, cookie options.
 - `lib/llm.ts` — `getLlmForUser(userId)` and `getWhisperForUser(userId)`. No eager construction (would crash `next build` if env vars are missing).
-- `lib/hubs.ts` — single source of truth for the 5 domain slugs ↔ enum mapping; used by NavMenu, the hubs API, hub pages.
+- `lib/hubs.ts` — single source of truth for the 5 domain slugs ↔ enum mapping; also exports the canonical Prisma `select` projections (`NOTE_SELECT_NEW`, `TASK_SELECT`, `NOTE_SELECT_WITH_TASK_FLAG`, `NOTE_SELECT_WITH_PROJECT`, `NOTE_SELECT_WITH_TASK_FLAG_PROJECT`, `PROJECT_SELECT`) so every route over-fetches identically and the schema changes are localized.
+- `lib/projects.ts` — pure logic for `Project` (no I/O at module scope). Holds `PROJECT_TRANSITIONS` DAG, `validateTransition(from, to)`, `formatProjectItem`, `formatProjectBrief`, `findOwnProjectOrThrow` (cuid regex + ownership), `mapPrismaError` (P2002 / P2003 / P2025 → 409 / 400 / 404), and `logProjectEvent` for structured `console` logs.
+- `lib/rate-limit.ts` — in-memory `Map`-based limiter: `rateLimit(key, limit, windowMs) → boolean`. Currently used by `/api/projects` (POST: 30 / minute; GET: 120 / minute). Ponytail: swap to Redis or Vercel KV for multi-instance.
 - `lib/draft-events.ts` — in-process `EventEmitter` bus for "a DRAFT finished processing".
-- `lib/parse-capture.ts` — the AI orchestration: chat completion, embedding, persistence. See `openwiki/capture-and-ai.md`.
+- `lib/parse-capture.ts` — the AI orchestration: chat completion, embedding, persistence, LLM reranker. See `openwiki/capture-and-ai.md`.
+- `lib/types/*.ts` — single source of truth for `NoteItem`, `TaskItem`, `ProjectItem`, `ParsedCapture`, `ApiResponse<T>`, and the `InvalidProjectIdError` discriminated union. Re-exports the Prisma enums (`NoteStatus`, `TaskStatus`, `ProjectStatus`, `NoteRelationshipType`).
+- `lib/legacy/enrich-draft-note.ts` — kept for back-compat; new code must NOT import it.
 
 ---
 
@@ -129,7 +147,7 @@ Authentication is JWT-in-cookie, validated at three layers:
    - Lets `/api/auth/me` through without redirecting (so the JSON contract is preserved; the route itself returns 401 if the token is invalid).
    - For everything else, reads the `auth_token` cookie, calls `verifySession`. Missing or invalid → `NextResponse.redirect(new URL('/login?redirect=' + pathname, ...))`.
 2. **API routes** re-verify inside the handler (defence-in-depth — the proxy could be misconfigured). The pattern is in `lib/auth.ts::verifySession` plus the `AUTH_COOKIE = 'auth_token'` constant.
-3. **Server components** read the session with `await cookies()` and call `verifySession` directly, e.g. `app/api/today/route.ts`.
+3. **Server components** read the session with `await cookies()` and call `verifySession` directly, e.g. `app/api/dashboard/route.ts` (the route that powers the Today page after the `/api/today` deletion).
 
 Cookie options (`cookieOptions()` in `lib/auth.ts`): `httpOnly`, `secure` in production, `sameSite='lax'`, `path='/'`, `maxAge = 1 year`.
 
@@ -171,9 +189,13 @@ These are intentional. Multi-tenant work would change the threat model and the S
 | `next.config.ts` | Security headers, SW CSP |
 | `lib/prisma.ts` | Prisma client singleton + pg pool |
 | `lib/auth.ts` | JWT sign/verify, cookie helpers, bcrypt |
-| `lib/hubs.ts` | 5-domain slug ↔ enum table |
+| `lib/hubs.ts` | 5-domain slug ↔ enum table + canonical Prisma `select`s |
+| `lib/projects.ts` | Project DAG, transition validation, ownership, Prisma error mapper |
+| `lib/rate-limit.ts` | In-memory rate limiter |
 | `lib/draft-events.ts` | In-process bus for SSE events |
 | `lib/llm.ts` | Per-user LLM client construction |
-| `lib/parse-capture.ts` | AI orchestration + embedding writeback |
+| `lib/parse-capture.ts` | AI orchestration + embedding writeback + LLM reranker |
+| `lib/types/*` | `NoteItem`, `TaskItem`, `ProjectItem`, error shapes |
 | `prisma/schema.prisma` | Data model |
 | `app/api/events/route.ts` | SSE stream |
+| `app/api/dashboard/route.ts` | Today dashboard payload (six sections) |
