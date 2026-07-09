@@ -1,17 +1,31 @@
 'use client'
 
-// Calendar — monthly grid of tasks with a backlog sidebar of undated work.
-// ponytail: native Date + Intl.DateTimeFormat only (no date lib). All bucketing
-// is client-side so the API stays a thin pass-through over the user's notes.
-
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NotePanel, type NoteDraft, type NoteItem } from '@/components/NotePanel'
 import { Toast } from '@/components/Toast'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type NoteStatus = 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE' | 'IN_PROGRESS' | 'DONE'
 type NoteDomain = 'ESPIRITUAL' | 'PERSONAL' | 'APRENDIZAJE' | 'PROYECTOS' | 'REGISTROS'
+
+// CalendarNote: shape que devuelve /api/calendar (Task + Note join)
+interface CalendarNote {
+  id: string
+  title: string
+  content: string
+  domain: string
+  noteStatus: string
+  tags: string[]
+  dueDate: string | null
+  isImportant: boolean
+  hasTask: boolean
+  taskId: string
+  taskStatus: string
+  taskDueDate: string | null
+  taskIsImportant: boolean
+  createdAt: string
+  updatedAt: string
+}
 
 interface GridCell {
   date: Date
@@ -22,9 +36,6 @@ interface GridCell {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-// ponytail: colors live here, not in lib/hubs.ts. Once the design system
-// stabilizes we can centralize them; for now the calendar is the only surface
-// that needs a per-domain hue.
 const DOMAIN_COLOR: Record<NoteDomain, string> = {
   ESPIRITUAL: '#A68966',
   PERSONAL: '#8E8E93',
@@ -34,14 +45,6 @@ const DOMAIN_COLOR: Record<NoteDomain, string> = {
 }
 
 const DAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-
-const STATUS_LABEL: Record<NoteStatus, string> = {
-  DRAFT: 'Borrador',
-  NEEDS_REVIEW: 'Revisión',
-  ACTIVE: 'Activa',
-  IN_PROGRESS: 'En curso',
-  DONE: 'Hecha',
-}
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
@@ -71,8 +74,6 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function buildGrid(year: number, monthIdx: number, today: Date): GridCell[] {
-  // ponytail: Monday-first week. JS getDay() returns 0 (Sun) – 6 (Sat); we
-  // remap to 0 (Mon) – 6 (Sun) via (getDay() + 6) % 7.
   const firstOfMonth = new Date(year, monthIdx, 1)
   const offset = (firstOfMonth.getDay() + 6) % 7
   const gridStart = new Date(firstOfMonth)
@@ -92,8 +93,6 @@ function buildGrid(year: number, monthIdx: number, today: Date): GridCell[] {
   return cells
 }
 
-// ─── Domain helpers ──────────────────────────────────────────────────────────
-
 function domainColor(d: string): string {
   return DOMAIN_COLOR[d as NoteDomain] ?? '#5A5A5A'
 }
@@ -106,7 +105,7 @@ function truncate(s: string, n: number): string {
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
-  const [notes, setNotes] = useState<NoteItem[]>([])
+  const [notes, setNotes] = useState<CalendarNote[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -117,17 +116,16 @@ export default function CalendarPage() {
     monthIdx: today.getMonth(),
   }))
 
-  const [selectedNote, setSelectedNote] = useState<NoteItem | null>(null)
+  const [selectedNote, setSelectedNote] = useState<CalendarNote | null>(null)
   const [creatingDraft, setCreatingDraft] = useState<NoteDraft | null>(null)
   const [creatingDate, setCreatingDate] = useState<Date | null>(null)
-
-  // ── Data fetching ────────────────────────────────────────────────────────
 
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/calendar', { cache: 'no-store' })
       if (!res.ok) throw new Error('Failed to load')
-      const json: NoteItem[] = await res.json()
+      const body = await res.json()
+      const json: CalendarNote[] = body.data ?? body
       setNotes(json)
     } catch {
       setError('No se pudieron cargar las tareas.')
@@ -136,12 +134,7 @@ export default function CalendarPage() {
     }
   }, [])
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load()
-  }, [load])
-
-  // ── View navigation ──────────────────────────────────────────────────────
+  useEffect(() => { load() }, [load])
 
   function gotoPrevMonth() {
     setView((v) => {
@@ -161,23 +154,17 @@ export default function CalendarPage() {
     setView({ year: today.getFullYear(), monthIdx: today.getMonth() })
   }
 
-  // ── Derived state ────────────────────────────────────────────────────────
-
-  const grid = useMemo(
-    () => buildGrid(view.year, view.monthIdx, today),
-    [view, today]
-  )
-
+  const grid = useMemo(() => buildGrid(view.year, view.monthIdx, today), [view, today])
   const todayYMD = useMemo(() => toYMD(today), [today])
 
-  // Index notes by YYYY-MM-DD string so cell lookups are O(1). Includes tasks
-  // scheduled this month AND spillover from adjacent months that the grid still
-  // renders (with opacity-30).
+  // Index notes by YYYY-MM-DD
   const tasksByYMD = useMemo(() => {
-    const map = new Map<string, NoteItem[]>()
+    const map = new Map<string, CalendarNote[]>()
     for (const n of notes) {
-      if (!n.dueDate) continue
-      const ymd = n.dueDate.slice(0, 10)
+      // Usar taskDueDate (más preciso) o dueDate
+      const dateStr = n.taskDueDate ?? n.dueDate
+      if (!dateStr) continue
+      const ymd = dateStr.slice(0, 10)
       const arr = map.get(ymd) ?? []
       arr.push(n)
       map.set(ymd, arr)
@@ -189,21 +176,18 @@ export default function CalendarPage() {
     const monthPrefix = `${view.year}-${String(view.monthIdx + 1).padStart(2, '0')}`
     let total = 0
     for (const n of notes) {
-      if (!n.dueDate) continue
-      // ponytail: dueDate is an ISO string from Prisma; the YYYY-MM prefix
-      // matches the view's month directly. No timezone math needed.
-      if (n.dueDate.slice(0, 7) === monthPrefix) total++
+      const dateStr = n.taskDueDate ?? n.dueDate
+      if (!dateStr) continue
+      if (dateStr.slice(0, 7) === monthPrefix) total++
     }
     return total
   }, [notes, view])
 
-  // Backlog = undated AND not done.
+  // Backlog = sin fecha
   const backlog = useMemo(
-    () => notes.filter((n) => n.dueDate === null && n.status !== 'DONE'),
+    () => notes.filter((n) => !n.taskDueDate && !n.dueDate),
     [notes]
   )
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
 
   function handleCellClick(cell: GridCell) {
     setCreatingDate(cell.date)
@@ -216,32 +200,13 @@ export default function CalendarPage() {
     })
   }
 
-  function handleTaskClick(task: NoteItem, e: React.SyntheticEvent) {
+  function handleTaskClick(task: CalendarNote, e: React.SyntheticEvent) {
     e.stopPropagation()
     setSelectedNote(task)
   }
 
-  // ponytail: create-with-prefilled-date flow. We POST first to get a note id,
-  // then PATCH the dueDate, then refresh. If the PATCH fails the note still
-  // exists (just undated) and we surface a toast — never block the user.
-  const patchDueDateAndReload = useCallback(
-    async (saved: NoteItem, date: Date | null) => {
-      if (!date) {
-        await load()
-        return
-      }
-      try {
-        const res = await fetch(`/api/notes/${saved.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dueDate: date.toISOString() }),
-        })
-        if (!res.ok) {
-          setToast('La nota se creó, pero no se pudo asignar la fecha.')
-        }
-      } catch {
-        setToast('La nota se creó, pero no se pudo asignar la fecha.')
-      }
+  const onNoteCreated = useCallback(
+    async (_saved: NoteItem, _date: Date | null) => {
       await load()
     },
     [load]
@@ -252,8 +217,6 @@ export default function CalendarPage() {
     setCreatingDraft(null)
     setCreatingDate(null)
   }
-
-  // ── Render ───────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -274,11 +237,7 @@ export default function CalendarPage() {
       <div className="border border-border bg-surface px-4 py-3 flex items-center justify-between">
         <p className="text-sm text-fg">{error}</p>
         <button
-          onClick={() => {
-            setError(null)
-            setLoading(true)
-            load()
-          }}
+          onClick={() => { setError(null); setLoading(true); load() }}
           className="text-[10px] tracking-widest text-accent uppercase hover:underline"
         >
           Reintentar
@@ -296,21 +255,6 @@ export default function CalendarPage() {
         .cal-cell:hover { border-color: rgba(166, 137, 102, 0.4) }
         .cal-tag { transition: border-color 120ms ease-out, color 120ms ease-out }
         .cal-tag:hover { color: #E3E2E2 }
-
-        /* ponytail: real CSS breakout. The shared (app)/layout.tsx caps the
-           <main> at max-w-[720px] and offsets it by 220px (md:ml-[220px]) for
-           the sidebar. A child can only ever be as wide as its parent's box,
-           so a literal "max-w-[1100px]" on the page is a no-op.
-           The pattern: width: 100vw with a negative margin that compensates
-           for the parent's centering + sidebar offset, and padding-left:
-           220px to push the actual content past the fixed sidebar.
-           Verified math:
-             - vw < 940 (parent fills container, no centering): margin = -220
-             - vw >= 940 (parent at max-w 720, centered in 100vw-220):
-                 parent_left_v = 220 + (100vw - 940) / 2 = 50vw - 250
-                 margin = -(parent_left_v) = 250 - 50vw
-               which equals -220 - max(0, 50vw - 470) for all viewports.
-             - max-width: 1320 keeps the content area <= 1100 (1320 - 220). */
         .calendar-container {
           width: 100%;
           max-width: 1100px;
@@ -328,7 +272,6 @@ export default function CalendarPage() {
       `}</style>
 
       <div className="calendar-container">
-        {/* Header */}
         <div className="mb-6">
           <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold">PLANIFICACIÓN</p>
           <div className="flex items-end justify-between mt-1 flex-wrap gap-3">
@@ -337,24 +280,16 @@ export default function CalendarPage() {
               <p className="font-serif text-lg text-fg-subtle mt-1">{monthLabel}</p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={gotoPrevMonth}
-                aria-label="Mes anterior"
-                className="w-9 h-9 border border-border text-fg-muted hover:border-accent/40 hover:text-accent transition-colors text-base leading-none flex items-center justify-center"
-              >
+              <button onClick={gotoPrevMonth} aria-label="Mes anterior"
+                className="w-9 h-9 border border-border text-fg-muted hover:border-accent/40 hover:text-accent transition-colors text-base leading-none flex items-center justify-center">
                 ‹
               </button>
-              <button
-                onClick={gotoToday}
-                className="px-4 h-9 border border-border text-fg-muted text-[10px] uppercase tracking-wider hover:border-accent/40 hover:text-accent transition-colors"
-              >
+              <button onClick={gotoToday}
+                className="px-4 h-9 border border-border text-fg-muted text-[10px] uppercase tracking-wider hover:border-accent/40 hover:text-accent transition-colors">
                 Hoy
               </button>
-              <button
-                onClick={gotoNextMonth}
-                aria-label="Mes siguiente"
-                className="w-9 h-9 border border-border text-fg-muted hover:border-accent/40 hover:text-accent transition-colors text-base leading-none flex items-center justify-center"
-              >
+              <button onClick={gotoNextMonth} aria-label="Mes siguiente"
+                className="w-9 h-9 border border-border text-fg-muted hover:border-accent/40 hover:text-accent transition-colors text-base leading-none flex items-center justify-center">
                 ›
               </button>
             </div>
@@ -362,23 +297,16 @@ export default function CalendarPage() {
           <div className="h-px bg-gradient-to-r from-accent/60 via-accent/20 to-transparent mt-4" />
         </div>
 
-        {/* Grid + Sidebar */}
         <div className="md:grid md:grid-cols-[1fr_300px] md:gap-6 md:items-start">
-          {/* Calendar grid */}
           <div>
-            {/* Day-of-week header */}
             <div className="grid grid-cols-7 gap-1.5 mb-1.5">
               {DAY_LABELS.map((d) => (
-                <div
-                  key={d}
-                  className="text-[10px] tracking-[0.15em] uppercase text-fg-faint text-center py-1"
-                >
+                <div key={d} className="text-[10px] tracking-[0.15em] uppercase text-fg-faint text-center py-1">
                   {d}
                 </div>
               ))}
             </div>
 
-            {/* Day cells — 6 weeks × 7 days = 42 */}
             <div className="grid grid-cols-7 gap-1.5">
               {grid.map((cell) => {
                 const cellTasks = tasksByYMD.get(cell.ymd) ?? []
@@ -398,18 +326,11 @@ export default function CalendarPage() {
                     ].join(' ')}
                   >
                     <div className="flex items-center justify-between">
-                      <span
-                        className={[
-                          'text-[10px] font-medium',
-                          cell.isToday ? 'text-accent' : 'text-fg-subtle',
-                        ].join(' ')}
-                      >
+                      <span className={['text-[10px] font-medium', cell.isToday ? 'text-accent' : 'text-fg-subtle'].join(' ')}>
                         {cell.date.getDate()}
                       </span>
                       {cell.ymd === todayYMD && cell.inMonth && (
-                        <span className="text-[8px] uppercase tracking-wider text-accent">
-                          Hoy
-                        </span>
+                        <span className="text-[8px] uppercase tracking-wider text-accent">Hoy</span>
                       )}
                     </div>
                     <div className="flex flex-col gap-0.5 overflow-hidden">
@@ -419,12 +340,7 @@ export default function CalendarPage() {
                           role="button"
                           tabIndex={0}
                           onClick={(e) => handleTaskClick(t, e)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              handleTaskClick(t, e)
-                            }
-                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTaskClick(t, e as unknown as React.SyntheticEvent) } }}
                           className="cal-tag flex items-center gap-1 border-l-2 pl-1 pr-1 py-0.5 text-[10px] leading-tight truncate cursor-pointer"
                           style={{ borderLeftColor: domainColor(t.domain) }}
                           title={t.title}
@@ -442,13 +358,10 @@ export default function CalendarPage() {
             </div>
 
             {monthTotal === 0 && (
-              <p className="text-fg-faint text-sm italic mt-8">
-                No hay tareas este mes.
-              </p>
+              <p className="text-fg-faint text-sm italic mt-8">No hay tareas este mes.</p>
             )}
           </div>
 
-          {/* Backlog sidebar */}
           <aside className="mt-8 md:mt-0 md:sticky md:top-8">
             <div className="flex items-baseline justify-between mb-3">
               <p className="text-[10px] tracking-[0.2em] text-accent uppercase font-semibold">
@@ -458,9 +371,7 @@ export default function CalendarPage() {
             </div>
 
             {backlog.length === 0 ? (
-              <p className="text-fg-faint text-xs italic">
-                Todo al día. No quedan tareas sin fecha.
-              </p>
+              <p className="text-fg-faint text-xs italic">Todo al día. No quedan tareas sin fecha.</p>
             ) : (
               <div className="space-y-2">
                 {backlog.map((n) => (
@@ -471,20 +382,12 @@ export default function CalendarPage() {
                     className="w-full text-left border border-border bg-surface px-3 py-2.5 hover:border-accent/30 transition-colors group"
                   >
                     <div className="flex items-start gap-2">
-                      <span
-                        className="mt-1 w-1.5 h-1.5 flex-shrink-0 rounded-full"
-                        style={{ backgroundColor: domainColor(n.domain) }}
-                        aria-hidden
-                      />
+                      <span className="mt-1 w-1.5 h-1.5 flex-shrink-0 rounded-full"
+                        style={{ backgroundColor: domainColor(n.domain) }} aria-hidden />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-fg truncate group-hover:text-accent/80 transition-colors">
                           {n.title || 'Sin título'}
                         </p>
-                        {n.status === 'IN_PROGRESS' && (
-                          <span className="inline-block mt-1 text-[9px] uppercase tracking-wider border border-accent/40 text-accent px-1.5 py-0.5">
-                            {STATUS_LABEL[n.status]}
-                          </span>
-                        )}
                       </div>
                     </div>
                   </button>
@@ -498,31 +401,26 @@ export default function CalendarPage() {
       {/* NotePanel — view/edit existing task */}
       {selectedNote && (
         <NotePanel
-          note={selectedNote}
+          note={{ id: selectedNote.id, title: selectedNote.title, content: selectedNote.content,
+            domain: selectedNote.domain, tags: selectedNote.tags, suggestedGoals: [],
+            noteStatus: selectedNote.noteStatus as 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE',
+            hasTask: selectedNote.hasTask, userId: '', createdAt: selectedNote.createdAt,
+            updatedAt: selectedNote.updatedAt }}
           onClose={() => setSelectedNote(null)}
-          onUpdate={() => {
-            load()
-          }}
-          onDelete={() => {
-            setSelectedNote(null)
-            load()
-          }}
+          onUpdate={() => { load() }}
+          onDelete={() => { setSelectedNote(null); load() }}
         />
       )}
 
-      {/* NotePanel — create with pre-filled date (PATCH applied after create) */}
       {creatingDraft && (
         <NotePanel
           draft={creatingDraft}
           onClose={closePanels}
-          onCreated={(saved) => patchDueDateAndReload(saved, creatingDate)}
+          onCreated={(saved) => onNoteCreated(saved, creatingDate)}
         />
       )}
 
-      {/* Toast */}
-      {toast && (
-        <Toast message={toast} onDismiss={() => setToast(null)} />
-      )}
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </>
   )
 }

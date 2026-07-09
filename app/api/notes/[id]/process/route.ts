@@ -5,7 +5,9 @@ import { AUTH_COOKIE, verifySession } from '@/lib/auth'
 import { emitNoteProcessed } from '@/lib/draft-events'
 import {
   runCaptureChatCompletion,
-  enrichDraftNote,
+  createEmbedding,
+  findSimilarNotes,
+  createRelationships,
   createTransactionFromParsed,
   createOrToggleHabitLogFromParsed,
   createWorkoutFromParsed,
@@ -31,124 +33,214 @@ export async function POST(
   const cookieStore = await cookies()
   const session = await getSession(cookieStore)
   if (!session) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+    return NextResponse.json({ ok: false, error: { code: 'unauthenticated', message: 'No autenticado' } }, { status: 401 })
   }
 
   const { id: noteId } = await ctx.params
 
-  // 1. Ownership check → 404
+  // 1. Ownership + status check
   const note = await prisma.note.findFirst({
     where: { id: noteId, userId: session.userId },
   })
   if (!note) {
-    return NextResponse.json({ error: 'not found' }, { status: 404 })
+    return NextResponse.json({ ok: false, error: { code: 'not_found', message: 'Nota no encontrada' } }, { status: 404 })
+  }
+  if (note.noteStatus !== 'DRAFT') {
+    return NextResponse.json({ ok: false, error: { code: 'not_draft', message: 'La nota no está en borrador' } }, { status: 409 })
   }
 
-  // 2. Status guard → 409
-  if (note.status !== 'DRAFT') {
-    return NextResponse.json({ error: 'not a draft' }, { status: 409 })
-  }
-
-  // 3. AI parsing with 15s timeout. On failure: promote DRAFT → NEEDS_REVIEW
-  // (Task 5.6) so the note shows up in the user's Review Inbox instead of
-  // getting stuck in DRAFT limbo where nobody ever re-tries it.
+  // ── FASE 1: Pre-tx — LLM call (embedding + parse) ────────────────────────
   let parsed: ParsedCapture
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15_000)
   try {
-    parsed = await runCaptureChatCompletion(
-      note.content,
-      session.userId,
-      controller.signal
-    )
+    parsed = await runCaptureChatCompletion(note.content, session.userId, controller.signal)
   } catch (err) {
     clearTimeout(timeout)
     console.error('[process] AI classification failed for note', noteId, err)
-    // ponytail: updateMany with status='DRAFT' is a CAS — survives a concurrent
-    // process racing us to delete the note. count=0 just means someone else
-    // already promoted / cleaned it; either way the user is taken care of.
+    // Promover a NEEDS_REVIEW con CAS
     const promoted = await prisma.note.updateMany({
-      where: { id: noteId, userId: session.userId, status: 'DRAFT' },
-      data: { status: 'NEEDS_REVIEW' },
+      where: { id: noteId, userId: session.userId, noteStatus: 'DRAFT' },
+      data: { noteStatus: 'NEEDS_REVIEW' },
     })
-    emitNoteProcessed({
-      noteId,
-      domain: 'NEEDS_REVIEW',
-      status: 'promoted',
-    })
+    emitNoteProcessed({ noteId, domain: 'NEEDS_REVIEW', status: 'promoted' })
     return NextResponse.json(
-      { status: 'promoted', noteId, promotedToReview: true, promotedCount: promoted.count },
+      { ok: true, data: { status: 'promoted', noteId, promotedCount: promoted.count } },
       { status: 200 }
     )
   }
   clearTimeout(timeout)
 
-  // 4. REGISTROS branch (Task 5.6): route to the matching structured table,
-  // then delete the original Note (CAS-gated to survive concurrent processing).
+  // ── FASE 2a: REGISTROS branch — entidad estructurada (transaccional) ─────
   if (parsed.domain === 'REGISTROS') {
-    const recordType = parsed.metadata.recordType
+    const recordType = parsed.metadata.recordType as string | null
 
-    if (
-      recordType === 'finanzas' ||
-      recordType === 'habito' ||
-      recordType === 'gimnasio'
-    ) {
-      let entity: { id: string; kind: string }
+    if (recordType === 'finanzas' || recordType === 'habito' || recordType === 'gimnasio') {
       try {
-        if (recordType === 'finanzas') {
-          entity = await createTransactionFromParsed(session.userId, parsed)
-        } else if (recordType === 'habito') {
-          entity = await createOrToggleHabitLogFromParsed(session.userId, parsed)
-        } else {
-          entity = await createWorkoutFromParsed(session.userId, parsed)
-        }
+        let entity: { id: string; kind: string }
+
+        // $transaction: crear entidad + borrar Note (CAS-gated)
+        await prisma.$transaction(async (tx) => {
+          if (recordType === 'finanzas') {
+            entity = await createTransactionFromParsed(tx, session.userId, parsed)
+          } else if (recordType === 'habito') {
+            entity = await createOrToggleHabitLogFromParsed(tx, session.userId, parsed)
+          } else {
+            entity = await createWorkoutFromParsed(tx, session.userId, parsed)
+          }
+
+          const deleted = await tx.note.deleteMany({
+            where: { id: noteId, userId: session.userId, noteStatus: 'DRAFT' },
+          })
+          if (deleted.count === 0) {
+            throw new Error('CAS_FAILED')
+          }
+        })
+
+        emitNoteProcessed({ noteId, domain: recordType, status: 'ok' })
+        return NextResponse.json({
+          ok: true,
+          data: { status: 'ok', kind: entity!.kind, entityId: entity!.id, noteId },
+        })
       } catch (err) {
-        console.error('[process] REGISTROS create failed for note', noteId, err)
+        if (err instanceof Error && err.message === 'CAS_FAILED') {
+          emitNoteProcessed({ noteId, domain: recordType, status: 'already_processed' })
+          return NextResponse.json({ ok: true, data: { alreadyProcessed: true } })
+        }
+        console.error('[process] REGISTROS tx failed for note', noteId, err)
         return NextResponse.json(
-          { error: 'CREATE_FAILED', noteId, keptStatus: 'DRAFT' },
+          { ok: false, error: { code: 'create_failed', message: 'Error al crear el registro' } },
           { status: 500 }
         )
       }
+    }
+    // REGISTROS sin recordType reconocido → cae al path default
+  }
 
-      const deleted = await prisma.note.deleteMany({
-        where: { id: noteId, userId: session.userId, status: 'DRAFT' },
+  // ── FASE 2b: Default — enrich Note + (opcional) crear Task ───────────────
+  const embedding = await createEmbedding(parsed.cleanedContent, session.userId)
+  const isExecutable =
+    (parsed.metadata.isImportant === true || parsed.metadata.dueDate != null) &&
+    parsed.domain !== 'ESPIRITUAL'
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // CAS: updateMany DRAFT → ACTIVE
+      const updateResult = await tx.note.updateMany({
+        where: { id: noteId, userId: session.userId, noteStatus: 'DRAFT' },
+        data: {
+          noteStatus: 'ACTIVE',
+          title: parsed.cleanedTitle,
+          content: parsed.cleanedContent,
+          domain: parsed.domain,
+          tags: parsed.tags,
+          suggestedGoals: parsed.suggestedGoals ?? [],
+        },
       })
 
-      if (deleted.count === 0) {
-        emitNoteProcessed({ noteId, domain: recordType, status: 'already_processed' })
-        return NextResponse.json({ alreadyProcessed: true }, { status: 200 })
+      if (updateResult.count === 0) {
+        throw new Error('ALREADY_PROCESSED')
       }
 
-      emitNoteProcessed({ noteId, domain: recordType, status: 'ok' })
-
-      return NextResponse.json({
-        status: 'ok',
-        kind: entity.kind,
-        entityId: entity.id,
-        noteId,
-      })
+      // Si es ejecutable, crear Task en la misma tx
+      if (isExecutable) {
+        await tx.task.create({
+          data: {
+            noteId,
+            userId: session.userId,
+            status: 'OPEN',
+            dueDate: parsed.metadata.dueDate ? new Date(parsed.metadata.dueDate) : null,
+            isImportant: parsed.metadata.isImportant,
+          },
+        })
+      }
+    })
+  } catch (err) {
+    if (err instanceof Error && err.message === 'ALREADY_PROCESSED') {
+      emitNoteProcessed({ noteId, domain: parsed.domain, status: 'already_processed' })
+      return NextResponse.json({ ok: true, data: { alreadyProcessed: true } })
     }
-    // REGISTROS without a recognized recordType → fall through to the default
-    // Note enrichment path below.
+    // P2002: Task ya existe (posible race con accept-goal)
+    const e = err as { code?: string }
+    if (e.code === 'P2002') {
+      return NextResponse.json(
+        { ok: false, error: { code: 'task_exists', message: 'La nota ya tiene una tarea asociada' } },
+        { status: 409 }
+      )
+    }
+    console.error('[process] tx failed for note', noteId, err)
+    return NextResponse.json(
+      { ok: false, error: { code: 'process_failed', message: 'Error al procesar la nota' } },
+      { status: 500 }
+    )
   }
 
-  // 5. Default: ESPIRITUAL / PERSONAL / APRENDIZAJE / PROYECTOS (and REGISTROS
-  // fallback) → enrich the Note to ACTIVE via the CAS-gated helper.
-  const updated = await enrichDraftNote(noteId, session.userId, parsed)
+  // ── FASE 3: Post-tx — embedding + relationships ──────────────────────────
+  try {
+    await prisma.$executeRaw`
+      UPDATE "Note"
+      SET embedding = ${embedding}::vector
+      WHERE id = ${noteId} AND "noteStatus" = 'ACTIVE'
+    `
 
-  if (updated === null) {
-    emitNoteProcessed({ noteId, domain: parsed.domain, status: 'already_processed' })
-    return NextResponse.json({ alreadyProcessed: true }, { status: 200 })
+    const similar = await findSimilarNotes(session.userId, noteId, embedding)
+    if (similar.length > 0) {
+      await createRelationships(session.userId, noteId, similar)
+    }
+  } catch (err) {
+    console.error('[process] post-tx embedding/rels failed for note', noteId, err)
+    // No bloqueante: la Note ya está ACTIVE
   }
 
-  emitNoteProcessed({ noteId, domain: updated.domain, status: 'ok' })
+  emitNoteProcessed({ noteId, domain: parsed.domain, status: 'ok' })
+
+  // Leer resultado final
+  const updated = await prisma.note.findUnique({
+    where: { id: noteId },
+    select: {
+      id: true, userId: true, title: true, content: true, domain: true,
+      tags: true, noteStatus: true, createdAt: true, updatedAt: true,
+      task: {
+        select: {
+          id: true, noteId: true, userId: true, status: true,
+          dueDate: true, isImportant: true, focusedAt: true,
+          completedAt: true, createdAt: true, updatedAt: true,
+        },
+      },
+    },
+  })
+
+  if (!updated) {
+    return NextResponse.json({ ok: false, error: { code: 'not_found', message: 'Nota no encontrada tras proceso' } }, { status: 500 })
+  }
 
   return NextResponse.json({
-    note: {
-      id: updated.id,
-      title: updated.title,
-      domain: updated.domain,
-      status: updated.status,
+    ok: true,
+    data: {
+      note: {
+        id: updated.id,
+        userId: updated.userId,
+        title: updated.title,
+        content: updated.content,
+        domain: updated.domain,
+        tags: updated.tags,
+        noteStatus: updated.noteStatus,
+        hasTask: Boolean(updated.task),
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+      },
+      task: updated.task ? {
+        id: updated.task.id,
+        noteId: updated.task.noteId,
+        userId: updated.task.userId,
+        status: updated.task.status,
+        dueDate: updated.task.dueDate?.toISOString() ?? null,
+        isImportant: updated.task.isImportant,
+        focusedAt: updated.task.focusedAt?.toISOString() ?? null,
+        completedAt: updated.task.completedAt?.toISOString() ?? null,
+        createdAt: updated.task.createdAt.toISOString(),
+        updatedAt: updated.task.updatedAt.toISOString(),
+      } : null,
     },
   })
 }

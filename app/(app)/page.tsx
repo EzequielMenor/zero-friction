@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import InboxSection from '@/components/InboxSection'
 import { Toast } from '@/components/Toast'
@@ -9,25 +9,36 @@ import type { Domain } from '@prisma/client'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type NoteStatus = 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE' | 'IN_PROGRESS' | 'DONE'
-
-interface Note {
+interface TaskItem {
   id: string
-  title: string
-  content: string
-  status: NoteStatus
-  isImportant: boolean
+  noteId: string
+  userId: string
+  status: 'OPEN' | 'DONE'
   dueDate: string | null
+  isImportant: boolean
+  focusedAt: string | null
+  completedAt: string | null
   createdAt: string
   updatedAt: string
 }
 
-interface TempNote extends Omit<Note, 'status' | 'updatedAt'> {
-  status: 'ACTIVE'
-  _pending?: true
+interface NoteBrief {
+  id: string
+  userId: string
+  title: string
+  content: string
+  domain: string
+  tags: string[]
+  noteStatus: string
+  hasTask: boolean
+  createdAt: string
+  updatedAt: string
 }
 
-
+interface TodayItem {
+  task: TaskItem
+  note: NoteBrief
+}
 
 interface Habit {
   id: string
@@ -49,6 +60,15 @@ interface ResurgenceNote {
   createdAt: string
 }
 
+interface DashboardData {
+  focusTask: TodayItem | null
+  todayTasks: TodayItem[]
+  maintenanceTasks: TodayItem[]
+  habits: Habit[]
+  dueSubscription: Subscription | null
+  resurgenceNote: ResurgenceNote | null
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function capitalizeFirst(s: string) {
@@ -56,8 +76,6 @@ function capitalizeFirst(s: string) {
 }
 
 function formatDisplayName(localPart: string): string {
-  // ponytail: email local part → "Test User" / "Ezequiel". Strips digits and
-  // test-noise suffixes; upgrade path is a proper display-name field on User.
   return localPart
     .split(/[-_]/)
     .map((w) => w.replace(/[^a-zA-Z]/g, ''))
@@ -67,7 +85,6 @@ function formatDisplayName(localPart: string): string {
 }
 
 function formatDateSpanish(date: Date): string {
-  // ponytail: locale hardcoded; user-locale switching would be the upgrade path.
   const df = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
   return capitalizeFirst(df.format(date).replace(/\s+/g, ' '))
 }
@@ -77,13 +94,6 @@ function getGreeting(hour: number): string {
   if (hour >= 12 && hour < 19) return 'Buenas tardes'
   return 'Buenas noches'
 }
-
-function getTodayYYYYMMDD(): string {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10)
-}
-
-
 
 // ─── Skeleton ──────────────────────────────────────────────────────────────────
 
@@ -211,9 +221,9 @@ function ReflectionForm({
 
 export default function Dashboard() {
   const [displayName, setDisplayName] = useState<string>('')
-  const [focusTask, setFocusTask] = useState<Note | null>(null)
-  const [todayTasks, setTodayTasks] = useState<(Note | TempNote)[]>([])
-  const [maintenanceTasks, setMaintenanceTasks] = useState<Note[]>([])
+  const [focusTask, setFocusTask] = useState<TodayItem | null>(null)
+  const [todayTasks, setTodayTasks] = useState<TodayItem[]>([])
+  const [maintenanceTasks, setMaintenanceTasks] = useState<TodayItem[]>([])
   const [habits, setHabits] = useState<Habit[]>([])
   const [dueSubscription, setDueSubscription] = useState<Subscription | null>(null)
   const [resurgenceNote, setResurgenceNote] = useState<ResurgenceNote | null>(null)
@@ -238,15 +248,17 @@ export default function Dashboard() {
         const formatted = formatDisplayName(localPart)
         setDisplayName(formatted || 'vos')
 
-        const todayRes = await fetch('/api/today')
-        if (!todayRes.ok) throw new Error('Failed to load today')
-        const { focusTask: ft, todayTasks: tt, maintenanceTasks: mt, habits: h, dueSubscription: ds, resurgenceNote: rn } = await todayRes.json()
-        setFocusTask(ft)
-        setTodayTasks(tt)
-        setMaintenanceTasks(mt)
-        setHabits(h ?? [])
-        setDueSubscription(ds ?? null)
-        setResurgenceNote(rn ?? null)
+        const dashRes = await fetch('/api/dashboard')
+        if (!dashRes.ok) throw new Error('Failed to load dashboard')
+        const body = await dashRes.json()
+        const data: DashboardData = body.data ?? body
+
+        setFocusTask(data.focusTask ?? null)
+        setTodayTasks(data.todayTasks ?? [])
+        setMaintenanceTasks(data.maintenanceTasks ?? [])
+        setHabits(data.habits ?? [])
+        setDueSubscription(data.dueSubscription ?? null)
+        setResurgenceNote(data.resurgenceNote ?? null)
       } catch {
         setError('No se pudieron cargar las tareas.')
       } finally {
@@ -256,20 +268,13 @@ export default function Dashboard() {
     load()
   }, [])
 
-
-
   // ── Optimistic Mutations ─────────────────────────────────────────────────────
 
-  async function handleCheck(task: Note | TempNote) {
-    if ('_pending' in task) return
+  async function handleCheck(item: TodayItem) {
     const prev = todayTasks
-    setTodayTasks((t) => t.filter((x) => x.id !== task.id))
+    setTodayTasks((t) => t.filter((x) => x.task.id !== item.task.id))
     try {
-      const res = await fetch(`/api/notes/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'DONE' }),
-      })
+      const res = await fetch(`/api/tasks/${item.task.id}/complete`, { method: 'POST' })
       if (!res.ok) throw new Error()
     } catch {
       setTodayTasks(prev)
@@ -277,20 +282,15 @@ export default function Dashboard() {
     }
   }
 
-  async function handleFocus(task: Note | TempNote) {
-    if ('_pending' in task) return
+  async function handleFocus(item: TodayItem) {
     const prev = todayTasks
-    // Optimistically remove from list and set as focus
-    setTodayTasks((t) => t.filter((x) => x.id !== task.id))
+    setTodayTasks((t) => t.filter((x) => x.task.id !== item.task.id))
     try {
-      const res = await fetch(`/api/notes/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'IN_PROGRESS' }),
-      })
+      const res = await fetch(`/api/tasks/${item.task.id}/focus`, { method: 'POST' })
       if (!res.ok) throw new Error()
-      const updated: Note = await res.json()
-      setFocusTask(updated)
+      const body = await res.json()
+      const updated = body.data ?? body
+      setFocusTask({ task: updated, note: item.note })
     } catch {
       setTodayTasks(prev)
       showToast('No se pudo hacer foco en la tarea.')
@@ -302,19 +302,8 @@ export default function Dashboard() {
     const prevFocus = focusTask
     setFocusTask(null)
     try {
-      const res = await fetch(`/api/notes/${prevFocus.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'ACTIVE' }),
-      })
+      const res = await fetch(`/api/tasks/${prevFocus.task.id}/unfocus`, { method: 'POST' })
       if (!res.ok) throw new Error()
-      const updated: Note = await res.json()
-      // Add back to list if it has today's dueDate
-      const todayYYYYMMDD = getTodayYYYYMMDD()
-      const dueStr = updated.dueDate?.slice(0, 10)
-      if (dueStr === todayYYYYMMDD) {
-        setTodayTasks((t) => [...t, updated])
-      }
     } catch {
       setFocusTask(prevFocus)
       showToast('No se pudo liberar el enfoque.')
@@ -323,17 +312,11 @@ export default function Dashboard() {
 
   // ── Maintenance Console handlers ──────────────────────────────────────────────
 
-  // ponytail: each handler snapshots its slice, optimistically removes (or moves)
-  // the task, then PATCHes. Rollback on any thrown error.
-  async function handleMaintCheck(task: Note) {
+  async function handleMaintCheck(item: TodayItem) {
     const prev = maintenanceTasks
-    setMaintenanceTasks((m) => m.filter((x) => x.id !== task.id))
+    setMaintenanceTasks((m) => m.filter((x) => x.task.id !== item.task.id))
     try {
-      const res = await fetch(`/api/notes/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'DONE' }),
-      })
+      const res = await fetch(`/api/tasks/${item.task.id}/complete`, { method: 'POST' })
       if (!res.ok) throw new Error()
     } catch {
       setMaintenanceTasks(prev)
@@ -341,17 +324,18 @@ export default function Dashboard() {
     }
   }
 
-  async function handleMaintHoy(task: Note) {
+  async function handleMaintHoy(item: TodayItem) {
     const prevMaint = maintenanceTasks
     const prevToday = todayTasks
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const iso = startOfToday.toISOString()
-    const updated: Note = { ...task, dueDate: iso, updatedAt: new Date().toISOString() }
-    setMaintenanceTasks((m) => m.filter((x) => x.id !== task.id))
+    const updatedTask = { ...item.task, dueDate: iso, updatedAt: new Date().toISOString() }
+    const updated = { task: updatedTask, note: item.note }
+    setMaintenanceTasks((m) => m.filter((x) => x.task.id !== item.task.id))
     setTodayTasks((t) => [...t, updated])
     try {
-      const res = await fetch(`/api/notes/${task.id}`, {
+      const res = await fetch(`/api/tasks/${item.task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dueDate: iso }),
@@ -364,16 +348,16 @@ export default function Dashboard() {
     }
   }
 
-  async function handleMaintManana(task: Note) {
+  async function handleMaintManana(item: TodayItem) {
     const prev = maintenanceTasks
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const startOfTomorrow = new Date(startOfToday)
     startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
     const iso = startOfTomorrow.toISOString()
-    setMaintenanceTasks((m) => m.filter((x) => x.id !== task.id))
+    setMaintenanceTasks((m) => m.filter((x) => x.task.id !== item.task.id))
     try {
-      const res = await fetch(`/api/notes/${task.id}`, {
+      const res = await fetch(`/api/tasks/${item.task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dueDate: iso }),
@@ -385,11 +369,11 @@ export default function Dashboard() {
     }
   }
 
-  async function handleMaintBacklog(task: Note) {
+  async function handleMaintBacklog(item: TodayItem) {
     const prev = maintenanceTasks
-    setMaintenanceTasks((m) => m.filter((x) => x.id !== task.id))
+    setMaintenanceTasks((m) => m.filter((x) => x.task.id !== item.task.id))
     try {
-      const res = await fetch(`/api/notes/${task.id}`, {
+      const res = await fetch(`/api/tasks/${item.task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dueDate: null, isImportant: false }),
@@ -401,10 +385,8 @@ export default function Dashboard() {
     }
   }
 
-  // "Dejar aquí": no reprograma nada — solo saca el nag de la consola de
-  // mantenimiento para esta sesión (la tarea sigue atrasada, sin tocar el backend).
-  function handleMaintDejarAqui(task: Note) {
-    setMaintenanceTasks((m) => m.filter((x) => x.id !== task.id))
+  function handleMaintDejarAqui(item: TodayItem) {
+    setMaintenanceTasks((m) => m.filter((x) => x.task.id !== item.task.id))
   }
 
   // ── Habit toggle ─────────────────────────────────────────────────────────────
@@ -459,13 +441,13 @@ export default function Dashboard() {
   }
 
   // ── Resurgence refresh ──────────────────────────────────────────────────────
-  // ponytail: random refresh via re-fetch; could be cached client-side.
 
   async function handleResurgenceRefresh() {
-    const res = await fetch('/api/today')
+    const res = await fetch('/api/dashboard')
     if (!res.ok) return
-    const { resurgenceNote: rn } = await res.json()
-    setResurgenceNote(rn ?? null)
+    const body = await res.json()
+    const data: DashboardData = body.data ?? body
+    setResurgenceNote(data.resurgenceNote ?? null)
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -510,7 +492,7 @@ export default function Dashboard() {
         >
           {focusTask ? (
             <>
-              <h2 className="font-serif text-2xl text-fg leading-snug">{focusTask.title}</h2>
+              <h2 className="font-serif text-2xl text-fg leading-snug">{focusTask.note.title}</h2>
               <button
                 onClick={handleReleaseFocus}
                 className="mt-3 text-[11px] text-accent hover:underline"
@@ -526,7 +508,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Inbox — GTD capture processing queue */}
+      {/* Inbox */}
       <InboxSection showToast={showToast} />
 
       {/* Today's Tasks */}
@@ -538,54 +520,36 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-2">
             {todayTasks
-              .filter((task) => !focusTask || task.id !== focusTask.id)
-              .map((task) => {
-              const isPending = '_pending' in task
-              const isDone = !isPending && task.status === 'DONE'
+              .filter((item) => !focusTask || item.task.id !== focusTask.task.id)
+              .map((item) => {
+              const isDone = item.task.status === 'DONE'
 
               return (
                 <div
-                  key={task.id}
+                  key={item.task.id}
                   className={`flex items-start gap-3 border border-border bg-surface px-4 py-3 group transition-opacity duration-200 ${isDone ? 'opacity-30' : 'opacity-100'}`}
                 >
-                  {/* Checkbox */}
-                  {!isPending && (
-                    <CheckIcon checked={isDone} onChange={() => handleCheck(task)} />
-                  )}
-                  {isPending && (
-                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse-dot" />
-                    </div>
-                  )}
+                  <CheckIcon checked={isDone} onChange={() => handleCheck(item)} />
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm leading-snug transition-all duration-150 ${isDone ? 'line-through text-fg-faint' : 'text-fg'}`}
                     >
-                      {task.title}
+                      {item.note.title}
                     </p>
-                    {isPending && (
-                      <p className="text-[10px] text-fg-faint mt-0.5">Procesando...</p>
-                    )}
                   </div>
 
-                  {/* Important star */}
-                  {!isPending && task.isImportant && <StarIcon filled />}
+                  {item.task.isImportant && <StarIcon filled />}
 
-                  {/* Focus button — only for real, non-done, non-focus tasks */}
-                  {!isPending && !isDone && focusTask?.id !== task.id && (
+                  {!isDone && focusTask?.task.id !== item.task.id && (
                     <button
-                      onClick={() => handleFocus(task)}
+                      onClick={() => handleFocus(item)}
                       className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 focus:opacity-100 focus:outline-none"
                       aria-label="Hacer foco en esta tarea"
                     >
                       <FocusIcon />
                     </button>
                   )}
-
-                  {/* Spacer for pending rows so the "Procesando..." label inside the content column stays right-aligned */}
-                  {isPending && <span className="w-4 flex-shrink-0" />}
                 </div>
               )
             })}
@@ -600,16 +564,16 @@ export default function Dashboard() {
             Consola de Mantenimiento
           </p>
           <div className="space-y-2">
-            {maintenanceTasks.map((task) => {
-              const isUndated = task.dueDate === null
+            {maintenanceTasks.map((item) => {
+              const isUndated = item.task.dueDate === null
               return (
                 <div
-                  key={task.id}
+                  key={item.task.id}
                   className="flex items-center gap-3 border border-border bg-surface px-3 py-2"
                 >
-                  <CheckIcon checked={false} onChange={() => handleMaintCheck(task)} />
+                  <CheckIcon checked={false} onChange={() => handleMaintCheck(item)} />
                   <span className="flex-1 min-w-0 truncate text-[12px] text-fg-subtle italic">
-                    {task.title}
+                    {item.note.title}
                   </span>
                   <span
                     className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 border ${
@@ -621,28 +585,20 @@ export default function Dashboard() {
                     {isUndated ? 'Sin fecha' : 'Atrasada'}
                   </span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={() => handleMaintHoy(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
-                    >
+                    <button onClick={() => handleMaintHoy(item)}
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors">
                       Hoy
                     </button>
-                    <button
-                      onClick={() => handleMaintManana(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
-                    >
+                    <button onClick={() => handleMaintManana(item)}
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors">
                       Mañana
                     </button>
-                    <button
-                      onClick={() => handleMaintBacklog(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
-                    >
+                    <button onClick={() => handleMaintBacklog(item)}
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors">
                       Al Backlog
                     </button>
-                    <button
-                      onClick={() => handleMaintDejarAqui(task)}
-                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors"
-                    >
+                    <button onClick={() => handleMaintDejarAqui(item)}
+                      className="text-[10px] uppercase tracking-wider px-2 py-1 border border-border text-fg-subtle hover:border-accent/40 hover:text-accent transition-colors">
                       Dejar aquí
                     </button>
                   </div>

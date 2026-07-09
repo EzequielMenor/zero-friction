@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test": "pnpm test:unit && pnpm test:e2e"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
@@ -24,16 +28,20 @@
     "@prisma/client": "^7.8.0",
     "@tailwindcss/postcss": "^4.3.2",
     "@types/bcryptjs": "^2.4.6",
+    "@types/cuid": "^2.0.4",
     "@types/d3-force": "^3.0.10",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/ui": "^4.1.10",
+    "cuid": "^3.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "prisma": "^7.8.0",
     "tailwindcss": "^4.3.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

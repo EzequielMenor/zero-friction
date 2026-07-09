@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { AUTH_COOKIE, verifySession } from '@/lib/auth'
-import type { Domain, Note, NoteStatus } from '@prisma/client'
+import { NOTE_SELECT_WITH_TASK_FLAG, TASK_SELECT } from '@/lib/hubs'
+import type { Domain } from '@prisma/client'
 
 // ─── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -15,7 +16,6 @@ async function getSession(
 }
 
 const VALID_DOMAINS: Domain[] = ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS']
-const VALID_STATUSES: NoteStatus[] = ['DRAFT', 'NEEDS_REVIEW', 'ACTIVE', 'IN_PROGRESS', 'DONE']
 
 // ─── POST /api/notes ───────────────────────────────────────────────────────────
 
@@ -23,12 +23,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const cookieStore = await cookies()
   const session = await getSession(cookieStore)
   if (!session) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+    return NextResponse.json({ ok: false, error: { code: 'unauthenticated', message: 'No autenticado' } }, { status: 401 })
   }
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
 
-  // Structured manual creation — title/content/domain/status present.
+  // Structured manual creation
   const isStructured =
     body?.title !== undefined ||
     body?.content !== undefined ||
@@ -38,58 +38,79 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const rawTitle = typeof body?.title === 'string' ? body.title.trim() : ''
     const rawContent = typeof body?.content === 'string' ? body.content : ''
     const rawDomain = typeof body?.domain === 'string' ? body.domain : ''
-    const rawStatus = typeof body?.status === 'string' ? body.status : ''
 
     const title = rawTitle.length > 0 ? rawTitle : 'Sin título'
     const content = rawContent
 
     if (!VALID_DOMAINS.includes(rawDomain as Domain)) {
-      return NextResponse.json({ error: 'invalid domain' }, { status: 400 })
+      return NextResponse.json({ ok: false, error: { code: 'invalid_domain', message: 'Dominio inválido' } }, { status: 400 })
     }
 
     const domain = rawDomain as Domain
-
-    let status: NoteStatus = 'ACTIVE'
-    if (rawStatus) {
-      if (!VALID_STATUSES.includes(rawStatus as NoteStatus)) {
-        return NextResponse.json({ error: 'invalid status' }, { status: 400 })
-      }
-      status = rawStatus as NoteStatus
-    }
-
-    let dueDate: Date | null = null
-    if (body?.dueDate) {
-      const parsed = new Date(body.dueDate as string)
-      if (!isNaN(parsed.getTime())) {
-        dueDate = parsed
-      }
-    }
-
-    const isImportant = body?.isImportant !== undefined ? Boolean(body.isImportant) : false
     const tags = Array.isArray(body?.tags) ? body.tags.map(String) : []
+    const suggestedGoals = Array.isArray(body?.suggestedGoals) ? body.suggestedGoals.map(String) : []
 
-    const note = await prisma.note.create({
-      data: {
-        userId: session.userId,
-        title,
-        content,
-        domain,
-        status,
-        dueDate,
-        isImportant,
-        tags,
-        suggestedGoals: [],
-      },
+    // Task fields (opcionales para creación directa desde calendario/panel)
+    const hasTaskFields =
+      (typeof body?.dueDate === 'string' && body.dueDate.length > 0) ||
+      body?.isImportant === true
+    const dueDate = typeof body?.dueDate === 'string' && body.dueDate.length > 0
+      ? new Date(body.dueDate)
+      : null
+    const isImportant = body?.isImportant === true
+
+    // Crear Note + (opcional) Task en una transacción
+    const result = await prisma.$transaction(async (tx) => {
+      const note = await tx.note.create({
+        data: {
+          userId: session.userId,
+          title,
+          content,
+          domain,
+          noteStatus: 'DRAFT', // FIX-J5: siempre DRAFT por defecto
+          tags,
+          suggestedGoals,
+        },
+        select: NOTE_SELECT_WITH_TASK_FLAG,
+      })
+
+      let task: Record<string, unknown> | null = null
+      if (hasTaskFields) {
+        task = await tx.task.create({
+          data: {
+            noteId: note.id,
+            userId: session.userId,
+            status: 'OPEN',
+            dueDate,
+            isImportant,
+          },
+          select: TASK_SELECT,
+        }) as unknown as Record<string, unknown>
+      }
+
+      return { note, task }
     })
+
+    const formatted = formatNoteItem({ ...result.note, task: result.task } as Record<string, unknown>)
 
     return NextResponse.json(
       {
-        id: note.id,
-        title: note.title,
-        content: note.content,
-        domain: note.domain,
-        status: note.status as Note['status'],
-        createdAt: note.createdAt.toISOString(),
+        ok: true,
+        data: {
+          ...formatted,
+          task: result.task ? {
+            id: result.task.id,
+            noteId: result.task.noteId,
+            userId: result.task.userId,
+            status: result.task.status,
+            dueDate: (result.task.dueDate as Date | null)?.toISOString() ?? null,
+            isImportant: result.task.isImportant,
+            focusedAt: (result.task.focusedAt as Date | null)?.toISOString() ?? null,
+            completedAt: (result.task.completedAt as Date | null)?.toISOString() ?? null,
+            createdAt: (result.task.createdAt as Date).toISOString(),
+            updatedAt: (result.task.updatedAt as Date).toISOString(),
+          } : null,
+        },
       },
       { status: 201 }
     )
@@ -98,7 +119,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // Quick GTD capture fallback — body.text is required.
   const text = typeof body?.text === 'string' ? body.text.trim() : ''
   if (!text) {
-    return NextResponse.json({ error: 'text is required' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: { code: 'text_required', message: 'El texto es obligatorio' } }, { status: 400 })
   }
 
   const note = await prisma.note.create({
@@ -107,7 +128,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       title: text.slice(0, 80),
       content: text,
       domain: 'REGISTROS',
-      status: 'DRAFT',
+      noteStatus: 'DRAFT',
       tags: [],
       suggestedGoals: [],
     },
@@ -115,10 +136,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json(
     {
-      id: note.id,
-      title: note.title,
-      status: note.status as Note['status'],
-      createdAt: note.createdAt.toISOString(),
+      ok: true,
+      data: {
+        id: note.id,
+        title: note.title,
+        noteStatus: 'DRAFT',
+        hasTask: false,
+        createdAt: note.createdAt.toISOString(),
+        userId: note.userId,
+        content: note.content,
+        domain: note.domain,
+        tags: note.tags,
+        updatedAt: note.updatedAt.toISOString(),
+      },
     },
     { status: 201 }
   )
@@ -132,32 +162,53 @@ export async function GET(
   const cookieStore = await cookies()
   const session = await getSession(cookieStore)
   if (!session) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
+    return NextResponse.json({ ok: false, error: { code: 'unauthenticated', message: 'No autenticado' } }, { status: 401 })
   }
 
   const { searchParams } = req.nextUrl
-  const status = (searchParams.get('status') ?? 'DRAFT') as Note['status']
+  const statusFilter = searchParams.get('status') ?? 'DRAFT'
+
+  // Mapear el status viejo al nuevo noteStatus
+  const noteStatusMap: Record<string, string> = {
+    DRAFT: 'DRAFT',
+    NEEDS_REVIEW: 'NEEDS_REVIEW',
+    ACTIVE: 'ACTIVE',
+  }
+
+  const noteStatus = noteStatusMap[statusFilter] ?? 'DRAFT'
 
   const notes = await prisma.note.findMany({
     where: {
       userId: session.userId,
-      status,
+      noteStatus: noteStatus as 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE',
     },
     orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      title: true,
-      content: true,
-      status: true,
-      isImportant: true,
-      dueDate: true,
-      createdAt: true,
-      updatedAt: true,
-      domain: true,
-      tags: true,
-      suggestedGoals: true,
-    },
+    select: NOTE_SELECT_WITH_TASK_FLAG,
   })
 
-  return NextResponse.json(notes)
+  return NextResponse.json(notes.map(formatNoteItem))
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatNoteItem(note: Record<string, unknown>) {
+  const n = note as {
+    id: string; userId: string; title: string; content: string;
+    domain: string; tags: string[]; suggestedGoals: string[];
+    noteStatus: string; createdAt: Date; updatedAt: Date;
+    task?: { id: string } | null;
+  }
+  return {
+    id: n.id,
+    userId: n.userId,
+    title: n.title,
+    content: n.content,
+    domain: n.domain,
+    tags: n.tags,
+    suggestedGoals: n.suggestedGoals ?? [],
+    noteStatus: n.noteStatus,
+    hasTask: Boolean(n.task),
+    createdAt: n.createdAt instanceof Date ? n.createdAt.toISOString() : n.createdAt,
+    updatedAt: n.updatedAt instanceof Date ? n.updatedAt.toISOString() : n.updatedAt,
+  }
 }

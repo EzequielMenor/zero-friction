@@ -24,15 +24,53 @@ export function domainMeta(domain: Domain) {
   return { icon: hub.icon, label: hub.label, slug: hub.slug }
 }
 
-export const NOTE_SELECT = {
+// ─── Nuevos selects (post-split) ───────────────────────────────────────────
+
+/** Select para Note sin campos de Task (para hubs, search, etc.). */
+export const NOTE_SELECT_NEW = {
   id: true,
+  userId: true,
   title: true,
   content: true,
-  status: true,
-  isImportant: true,
-  dueDate: true,
+  domain: true,
   tags: true,
   suggestedGoals: true,
+  noteStatus: true,
   createdAt: true,
   updatedAt: true,
+} as const
+
+/** Select para Note con flag hasTask (include ligero de Task). */
+export const NOTE_SELECT_WITH_TASK_FLAG = {
+  id: true,
+  userId: true,
+  title: true,
+  content: true,
+  domain: true,
+  tags: true,
+  suggestedGoals: true,
+  noteStatus: true,
+  createdAt: true,
+  updatedAt: true,
+  task: { select: { id: true } },
+} as const
+
+/** Select para Task. */
+export const TASK_SELECT = {
+  id: true,
+  noteId: true,
+  userId: true,
+  status: true,
+  dueDate: true,
+  isImportant: true,
+  focusedAt: true,
+  completedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
+/** Select para Note con Task incluida (para dashboard TodayItem). */
+export const NOTE_SELECT_WITH_TASK = {
+  ...NOTE_SELECT_NEW,
+  task: { select: TASK_SELECT },
 } as const

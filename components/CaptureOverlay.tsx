@@ -9,18 +9,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { CalendarIcon, FlameIcon } from '@/components/icons'
+import type { SearchResultItem } from '@/lib/types/note'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type SearchNote = {
-  id: string
-  title: string
-  content: string
-  domain: string
-  isImportant: boolean
-  dueDate: string | null
-  createdAt: string
-}
 
 type Chips = { dates: string[]; important: boolean }
 
@@ -85,7 +76,7 @@ export default function CaptureOverlay() {
   const [recording, setRecording] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [results, setResults] = useState<SearchNote[]>([])
+  const [results, setResults] = useState<SearchResultItem[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   // ponytail: hint for "I clicked submit with nothing" / "your recording was empty".
   // Stays distinct from errorMessage (errors are from the API; hints are local).
@@ -153,7 +144,8 @@ export default function CaptureOverlay() {
         })
 
         if (res.status === 201) {
-          const result: { id: string } = await res.json()
+          const body = await res.json()
+          const result = body.data ?? body
           // Notify InboxSection to prepend the new DRAFT note.
           window.dispatchEvent(
             new CustomEvent('zf:draft', { detail: { noteId: result.id } })

@@ -3,35 +3,28 @@
 import { useState } from 'react'
 import { HubIcon } from '@/components/icons'
 import { domainMeta } from '@/lib/hubs'
+import type { NoteItem, NoteWithTask } from '@/lib/types/note'
+import type { TaskItem } from '@/lib/types/task'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Re-export types for consumers ────────────────────────────────────────────
 
-type NoteStatus = 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE' | 'IN_PROGRESS' | 'DONE'
+export type { NoteItem } from '@/lib/types/note'
+
 type NoteDomain = 'ESPIRITUAL' | 'PERSONAL' | 'APRENDIZAJE' | 'PROYECTOS' | 'REGISTROS'
 
-export interface NoteItem {
-  id: string
-  title: string
-  content: string
-  status: NoteStatus
-  isImportant: boolean
-  dueDate: string | null
-  createdAt: string
-  updatedAt: string
-  domain: NoteDomain
-  tags?: string[]
-  suggestedGoals?: string[]
-}
-
-export interface NoteDraft {
+// Legacy NoteDraft for create mode (used by Calendar, HubContent)
+export interface NoteDraftLegacy {
   title: string
   content: string
   domain: NoteDomain
-  status: NoteStatus
+  status?: string
   dueDate?: string | null
   isImportant?: boolean
   tags?: string[]
 }
+
+// Re-export with old name for compat
+export type NoteDraft = NoteDraftLegacy
 
 function formatInputDate(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
@@ -41,12 +34,9 @@ function formatInputDate(dateStr: string | null | undefined): string {
 }
 
 interface NotePanelProps {
-  /** Provide either an existing `note` (edit/view mode) or a `draft` (create mode). */
-  note?: NoteItem
+  note?: NoteItem | NoteWithTask
   draft?: NoteDraft
-  /** When true, lock the domain selector to the provided value (used by HubContent create flow). */
   lockDomain?: boolean
-  /** Called after a successful save (PATCH) or create (POST). */
   onClose: () => void
   onUpdate?: (saved: NoteItem) => void
   onCreated?: (saved: NoteItem) => void
@@ -66,21 +56,11 @@ function relativeTime(dateStr: string): string {
   return rtf.format(Math.round(diffDays / 365), 'year')
 }
 
-function statusBadge(status: NoteStatus): string {
-  const map: Record<NoteStatus, string> = {
-    DRAFT: 'Borrador',
-    NEEDS_REVIEW: 'Revisión',
-    ACTIVE: 'Activa',
-    IN_PROGRESS: 'En curso',
-    DONE: 'Hecha',
-  }
-  return map[status] ?? status
-}
-
 // ─── Suggested Goal Button ─────────────────────────────────────────────────────
 
 function SuggestedGoalButton({ noteId, goal }: { noteId: string; goal: string }) {
   const [accepted, setAccepted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleAccept() {
     if (accepted) return
@@ -92,6 +72,8 @@ function SuggestedGoalButton({ noteId, goal }: { noteId: string; goal: string })
       })
       if (res.ok) {
         setAccepted(true)
+      } else if (res.status === 409) {
+        setError('Ya tenés una tarea asociada a esta nota.')
       }
     } catch {
       // noop
@@ -101,17 +83,23 @@ function SuggestedGoalButton({ noteId, goal }: { noteId: string; goal: string })
   return (
     <div className="flex items-start gap-2">
       <span className="text-fg-faint text-xs flex-1 leading-relaxed">{goal}</span>
-      <button
-        onClick={handleAccept}
-        disabled={accepted}
-        className={`flex-shrink-0 text-[10px] uppercase tracking-wider px-2 py-1 border transition-colors ${
-          accepted
-            ? 'border-accent/20 text-accent/30 cursor-default'
-            : 'border-accent/40 text-accent hover:bg-accent/10'
-        }`}
-      >
-        {accepted ? 'Aceptada' : 'Aceptar como Meta'}
-      </button>
+      <div className="flex-shrink-0">
+        {error ? (
+          <span className="text-[10px] text-amber-400">{error}</span>
+        ) : (
+          <button
+            onClick={handleAccept}
+            disabled={accepted}
+            className={`text-[10px] uppercase tracking-wider px-2 py-1 border transition-colors ${
+              accepted
+                ? 'border-accent/20 text-accent/30 cursor-default'
+                : 'border-accent/40 text-accent hover:bg-accent/10'
+            }`}
+          >
+            {accepted ? 'Aceptada' : 'Aceptar como Meta'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -129,13 +117,20 @@ export function NotePanel({
 }: NotePanelProps) {
   const isCreateMode = !note && !!draft
 
-  // Local form state for edit/create flows
+  // Extraer Task de NoteWithTask
+  const existingTask = note && 'task' in note ? (note as NoteWithTask).task : null
+  const taskId = existingTask?.id
+
+  // Local form state
   const [title, setTitle] = useState(draft?.title ?? note?.title ?? '')
   const [content, setContent] = useState(draft?.content ?? note?.content ?? '')
-  const [domain, setDomain] = useState<NoteDomain>(draft?.domain ?? note?.domain ?? 'PERSONAL')
-  const [status, setStatus] = useState<NoteStatus>(draft?.status ?? note?.status ?? 'ACTIVE')
-  const [dueDate, setDueDate] = useState<string>(formatInputDate(draft?.dueDate ?? note?.dueDate))
-  const [isImportant, setIsImportant] = useState<boolean>(draft?.isImportant ?? note?.isImportant ?? false)
+  const [domain, setDomain] = useState<NoteDomain>(draft?.domain ?? note?.domain as NoteDomain ?? 'PERSONAL')
+  const [dueDate, setDueDate] = useState<string>(formatInputDate(
+    draft?.dueDate ?? existingTask?.dueDate ?? null
+  ))
+  const [isImportant, setIsImportant] = useState<boolean>(
+    draft?.isImportant ?? existingTask?.isImportant ?? false
+  )
   const [tagsText, setTagsText] = useState<string>((draft?.tags ?? note?.tags ?? []).join(', '))
   const [isEditing, setIsEditing] = useState(isCreateMode)
   const [saving, setSaving] = useState(false)
@@ -149,13 +144,10 @@ export function NotePanel({
     setError(null)
 
     try {
-      const res = await fetch(`/api/notes/${note.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
+      const res = await fetch(`/api/notes/${note.id}`, { method: 'DELETE', credentials: 'include' })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        throw new Error(json.error ?? 'Error al eliminar la nota')
+        throw new Error(json.error?.message ?? 'Error al eliminar la nota')
       }
       onDelete?.(note.id)
       onClose()
@@ -178,55 +170,92 @@ export function NotePanel({
 
     try {
       if (isCreateMode) {
+        const payload: Record<string, unknown> = {
+          title: title.trim() || 'Sin título',
+          content,
+          domain,
+          tags: tagsText.split(',').map((t) => t.trim()).filter(Boolean),
+        }
+        // Pasar campos de Task si el draft los incluye (ej: desde calendario)
+        if (draft?.dueDate) {
+          payload.dueDate = draft.dueDate
+        }
+        if (draft?.isImportant) {
+          payload.isImportant = draft.isImportant
+        }
         const res = await fetch('/api/notes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: title.trim() || 'Sin título',
-            content,
-            domain,
-            status,
-            dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-            isImportant,
-            tags: tagsText.split(',').map((t) => t.trim()).filter(Boolean),
-          }),
+          body: JSON.stringify(payload),
         })
         if (!res.ok) {
           const json = await res.json().catch(() => ({}))
-          throw new Error(json.error ?? 'Error al crear la nota')
+          throw new Error(json.error?.message ?? 'Error al crear la nota')
         }
-        const created = (await res.json()) as NoteItem
+        const body = await res.json()
+        const created = body.data ?? body
         onCreated?.(created)
         onClose()
         return
       }
 
       if (!note) return
-      const res = await fetch(`/api/notes/${note.id}`, {
+
+      // PATCH Note (title/content/tags/domain)
+      const notePatch = fetch(`/api/notes/${note.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim() || 'Sin título',
           content,
           domain,
-          status,
-          dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-          isImportant,
           tags: tagsText.split(',').map((t) => t.trim()).filter(Boolean),
         }),
       })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json.error ?? 'Error al guardar los cambios')
+
+      // PATCH Task (dueDate/isImportant) — solo si hay Task
+      const taskData = taskId ? {
+        dueDate: dueDate || null,
+        isImportant,
+      } : null
+
+      const results = await Promise.allSettled([
+        notePatch,
+        taskId && taskData
+          ? fetch(`/api/tasks/${taskId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(taskData),
+            })
+          : Promise.resolve(null),
+      ])
+
+      const noteResult = results[0]
+      const taskResult = results[1]
+
+      if (noteResult.status === 'rejected') {
+        throw new Error('Error al guardar los cambios de la nota')
       }
-      const updated = (await res.json()) as NoteItem
-      // Reflect latest upstream values in local state
+
+      const noteRes = await noteResult.value.json()
+      const updated = noteRes.data ?? noteRes
+
+      if (taskResult.status === 'rejected') {
+        setError('La nota se guardó, pero los cambios de tarea no. Reintentá.')
+      } else {
+        setError(null)
+      }
+
+      // Reflect latest values
       setTitle(updated.title)
       setContent(updated.content)
       setDomain(updated.domain)
-      setStatus(updated.status)
-      setDueDate(formatInputDate(updated.dueDate))
-      setIsImportant(updated.isImportant)
+      if (taskResult.status === 'fulfilled' && taskResult.value) {
+        const taskRes = await taskResult.value.json()
+        const taskUpdated = taskRes.data ?? taskRes
+        setDueDate(formatInputDate(taskUpdated?.dueDate ?? null))
+        setIsImportant(taskUpdated?.isImportant ?? false)
+      }
       setTagsText((updated.tags ?? []).join(', '))
       setIsEditing(false)
       onUpdate?.(updated)
@@ -245,14 +274,15 @@ export function NotePanel({
     if (!note) return
     setTitle(note.title)
     setContent(note.content)
-    setDomain(note.domain)
-    setStatus(note.status)
-    setDueDate(formatInputDate(note.dueDate))
-    setIsImportant(note.isImportant)
+    setDomain(note.domain as NoteDomain)
+    setDueDate(formatInputDate(existingTask?.dueDate ?? null))
+    setIsImportant(existingTask?.isImportant ?? false)
     setTagsText((note.tags ?? []).join(', '))
     setIsEditing(false)
     setError(null)
   }
+
+  const viewDueDate = existingTask?.dueDate ?? null
 
   return (
     <>
@@ -292,23 +322,8 @@ export function NotePanel({
                       <option value="PROYECTOS">Proyectos</option>
                     </select>
                   </div>
-                  {(domain === 'PROYECTOS' || domain === 'PERSONAL') && (
+                  {(domain === 'PROYECTOS' || domain === 'PERSONAL') && taskId && (
                     <>
-                      <div className="mt-2">
-                        <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
-                          Estado
-                        </label>
-                        <select
-                          value={status}
-                          onChange={(e) => setStatus(e.target.value as NoteStatus)}
-                          className="w-full bg-surface border border-border text-fg-muted text-xs px-2 py-1 focus:outline-none focus:border-accent/50"
-                        >
-                          <option value="ACTIVE">Activa</option>
-                          <option value="IN_PROGRESS">En curso</option>
-                          <option value="DONE">Hecha</option>
-                          <option value="NEEDS_REVIEW">Revisión</option>
-                        </select>
-                      </div>
                       <div className="mt-2">
                         <label className="text-[10px] tracking-[0.15em] uppercase text-fg-faint block mb-1">
                           Fecha Límite (Opcional)
@@ -362,7 +377,7 @@ export function NotePanel({
             </button>
           </div>
 
-          {/* Edit-mode actions at top */}
+          {/* Edit-mode actions */}
           {isEditing && (
             <div className="flex flex-col gap-2 mb-4">
               <div className="flex items-center gap-2">
@@ -399,12 +414,12 @@ export function NotePanel({
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3 text-[11px] text-fg-faint">
                   <span className="border border-accent/40 text-accent px-2 py-0.5 text-[10px] uppercase tracking-wider">
-                    {statusBadge(status)}
+                    {note.noteStatus === 'DRAFT' ? 'Borrador' : note.noteStatus === 'NEEDS_REVIEW' ? 'Revisión' : 'Activa'}
                   </span>
-                  {note.dueDate && (
-                    <span>{new Date(note.dueDate).toLocaleDateString('es-AR')}</span>
+                  {viewDueDate && (
+                    <span>{new Date(viewDueDate).toLocaleDateString('es-AR')}</span>
                   )}
-                  {note.isImportant && (
+                  {existingTask?.isImportant && (
                     <span className="text-accent">★ Importante</span>
                   )}
                 </div>
@@ -434,14 +449,14 @@ export function NotePanel({
                 </div>
               )}
 
-              {/* Suggested Goals — only for espiritual notes */}
-              {note.domain === 'ESPIRITUAL' && note.suggestedGoals && note.suggestedGoals.length > 0 && (
+              {/* Suggested Goals */}
+              {note.domain === 'ESPIRITUAL' && (note.suggestedGoals?.length ?? 0) > 0 && (
                 <div className="mt-6 pt-4 border-t border-border">
                   <p className="text-[10px] tracking-[0.15em] uppercase text-accent mb-3">
                     Metas sugeridas por IA
                   </p>
                   <div className="space-y-2">
-                    {note.suggestedGoals.map((goal, i) => (
+                    {note.suggestedGoals!.map((goal, i) => (
                       <SuggestedGoalButton key={i} noteId={note.id} goal={goal} />
                     ))}
                   </div>

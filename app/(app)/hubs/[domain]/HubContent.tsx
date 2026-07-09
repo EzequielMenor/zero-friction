@@ -9,8 +9,6 @@ import type { Domain } from '@prisma/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type NoteStatus = 'DRAFT' | 'NEEDS_REVIEW' | 'ACTIVE' | 'IN_PROGRESS' | 'DONE'
-
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function relativeTime(dateStr: string): string {
@@ -22,17 +20,6 @@ function relativeTime(dateStr: string): string {
   if (Math.abs(diffDays) < 30) return rtf.format(diffDays, 'day')
   if (Math.abs(diffDays) < 365) return rtf.format(Math.round(diffDays / 30), 'month')
   return rtf.format(Math.round(diffDays / 365), 'year')
-}
-
-function statusBadge(status: NoteStatus): string {
-  const map: Record<NoteStatus, string> = {
-    DRAFT: 'Borrador',
-    NEEDS_REVIEW: 'Revisión',
-    ACTIVE: 'Activa',
-    IN_PROGRESS: 'En curso',
-    DONE: 'Hecha',
-  }
-  return map[status] ?? status
 }
 
 function domainIcon(domain: string): string | null {
@@ -73,10 +60,10 @@ function NoteCard({ note, onOpen }: { note: NoteItem; onOpen: (n: NoteItem) => v
       </div>
       <div className="flex items-center gap-2 mt-3 text-[10px] text-fg-faint">
         <span className="text-[9px] uppercase tracking-wider border border-border px-1.5 py-0.5">
-          {statusBadge(note.status)}
+          {note.noteStatus === 'DRAFT' ? 'Borrador' : note.noteStatus === 'NEEDS_REVIEW' ? 'Revisión' : 'Activa'}
         </span>
         <span>Actualizada {relativeTime(note.updatedAt)}</span>
-        {note.isImportant && <span className="text-accent">★</span>}
+        {note.hasTask && <span className="text-accent">⚡</span>}
       </div>
     </button>
   )
@@ -112,7 +99,8 @@ export default function HubContent({ slug }: { slug: string }) {
     try {
       const res = await fetch(`/api/hubs/${slug}`)
       if (!res.ok) throw new Error('Failed to load')
-      const json = await res.json()
+      const body = await res.json()
+      const json = body.data ?? body
       setData(json)
     } catch {
       setError('No se pudieron cargar las notas.')
@@ -121,10 +109,7 @@ export default function HubContent({ slug }: { slug: string }) {
     }
   }
 
-  useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug])
+  useEffect(() => { load() }, [slug])
 
   if (loading) {
     return (
@@ -149,7 +134,6 @@ export default function HubContent({ slug }: { slug: string }) {
 
   const { relatedItems } = data
 
-  // Build draft for create flow when hub supports it (excludes `registros` directory).
   const createDraft: NoteDraft | null =
     hubDomain && hubDomain !== 'REGISTROS'
       ? { title: '', content: '', domain: hubDomain, status: 'ACTIVE' }
@@ -157,7 +141,6 @@ export default function HubContent({ slug }: { slug: string }) {
 
   return (
     <>
-      {/* Editorial Header */}
       <div className="mb-8">
         <div className="flex items-center gap-4 mb-2">
           {hub && <HubIcon icon={hub.icon} size={48} />}
@@ -171,38 +154,20 @@ export default function HubContent({ slug }: { slug: string }) {
         </p>
       </div>
 
-      {/* Registros Sub-View Directory */}
       {slug === 'registros' && (
         <div className="space-y-3">
           <p className="text-fg-faint text-xs mb-4">
             Seleccioná un submódulo para acceder a su panel de control.
           </p>
           {[
-            {
-              href: '/hubs/registros/fuerza',
-              label: 'Fuerza',
-              desc: 'Entrenamientos, volumen y récords personales',
-            },
-            {
-              href: '/hubs/registros/finanzas',
-              label: 'Finanzas',
-              desc: 'Ciclo de nómina, distribución de gastos y suscripciones',
-            },
-            {
-              href: '/hubs/registros/habitos',
-              label: 'Hábitos',
-              desc: 'Seguimiento de hábitos y rutinas diarias',
-            },
+            { href: '/hubs/registros/fuerza', label: 'Fuerza', desc: 'Entrenamientos, volumen y récords personales' },
+            { href: '/hubs/registros/finanzas', label: 'Finanzas', desc: 'Ciclo de nómina, distribución de gastos y suscripciones' },
+            { href: '/hubs/registros/habitos', label: 'Hábitos', desc: 'Seguimiento de hábitos y rutinas diarias' },
           ].map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center justify-between border border-border bg-surface px-5 py-4 hover:border-accent/40 transition-colors group"
-            >
+            <Link key={item.href} href={item.href}
+              className="flex items-center justify-between border border-border bg-surface px-5 py-4 hover:border-accent/40 transition-colors group">
               <div>
-                <h3 className="font-serif text-fg text-lg group-hover:text-accent/80 transition-colors">
-                  {item.label}
-                </h3>
+                <h3 className="font-serif text-fg text-lg group-hover:text-accent/80 transition-colors">{item.label}</h3>
                 <p className="text-fg-faint text-xs mt-0.5">{item.desc}</p>
               </div>
               <div className="text-fg-faint group-hover:text-accent transition-colors">
@@ -216,31 +181,21 @@ export default function HubContent({ slug }: { slug: string }) {
         </div>
       )}
 
-      {/* Smart Tags Filter + Nueva Nota — only for non-registros hubs */}
       {slug !== 'registros' && (
         <div className="flex flex-wrap items-center gap-3 mb-6">
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setActiveTag(null)}
+              <button onClick={() => setActiveTag(null)}
                 className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
-                  activeTag === null
-                    ? 'border-accent text-accent'
-                    : 'border-border text-fg-faint hover:border-accent/40'
-                }`}
-              >
+                  activeTag === null ? 'border-accent text-accent' : 'border-border text-fg-faint hover:border-accent/40'
+                }`}>
                 Todas
               </button>
               {allTags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setActiveTag(tag === activeTag ? null : tag)}
+                <button key={tag} onClick={() => setActiveTag(tag === activeTag ? null : tag)}
                   className={`text-[10px] uppercase tracking-wider px-3 py-1 border transition-colors ${
-                    tag === activeTag
-                      ? 'border-accent text-accent'
-                      : 'border-border text-fg-faint hover:border-accent/40'
-                  }`}
-                >
+                    tag === activeTag ? 'border-accent text-accent' : 'border-border text-fg-faint hover:border-accent/40'
+                  }`}>
                   {tag}
                 </button>
               ))}
@@ -248,21 +203,16 @@ export default function HubContent({ slug }: { slug: string }) {
           )}
 
           {createDraft && (
-            <button
-              onClick={() => setCreating(true)}
-              className="ml-auto border border-accent/50 text-accent text-[10px] uppercase tracking-wider px-3 py-1 hover:bg-accent/10 transition-colors"
-            >
+            <button onClick={() => setCreating(true)}
+              className="ml-auto border border-accent/50 text-accent text-[10px] uppercase tracking-wider px-3 py-1 hover:bg-accent/10 transition-colors">
               + Nueva Nota
             </button>
           )}
         </div>
       )}
 
-      {/* Notes list */}
       {slug !== 'registros' && (filteredNotes.length === 0 ? (
-        <p className="text-fg-faint text-sm italic mt-8">
-          Sin notas en este dominio por ahora.
-        </p>
+        <p className="text-fg-faint text-sm italic mt-8">Sin notas en este dominio por ahora.</p>
       ) : (
         <div className="space-y-3">
           {filteredNotes.map((note) => (
@@ -271,17 +221,12 @@ export default function HubContent({ slug }: { slug: string }) {
         </div>
       ))}
 
-      {/* Vínculos Externos — collapsible */}
       <div className="mt-12">
         <details className="group">
-          <summary
-            className="flex items-center justify-between cursor-pointer list-none text-[11px] tracking-[0.15em] uppercase text-fg-faint hover:text-accent/80 transition-colors select-none"
-          >
+          <summary className="flex items-center justify-between cursor-pointer list-none text-[11px] tracking-[0.15em] uppercase text-fg-faint hover:text-accent/80 transition-colors select-none">
             <span>Vínculos Externos</span>
             <div className="flex items-center gap-2">
-              <span className="border border-border px-1.5 py-0.5 text-[10px]">
-                {relatedItems.length}
-              </span>
+              <span className="border border-border px-1.5 py-0.5 text-[10px]">{relatedItems.length}</span>
               <span className="group-open:rotate-180 transition-transform duration-200">
                 <svg viewBox="0 0 12 12" className="w-3 h-3">
                   <polyline points="2,4 6,8 10,4" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -289,20 +234,14 @@ export default function HubContent({ slug }: { slug: string }) {
               </span>
             </div>
           </summary>
-
           <div className="mt-4">
             {relatedItems.length === 0 ? (
-              <p className="text-fg-faint text-xs italic pl-1">
-                Sin vínculos con otros dominios por ahora.
-              </p>
+              <p className="text-fg-faint text-xs italic pl-1">Sin vínculos con otros dominios por ahora.</p>
             ) : (
               <div className="space-y-2">
                 {relatedItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => setSelectedNote(item)}
-                    className="w-full text-left border border-border bg-surface px-4 py-3 hover:border-accent/30 transition-colors group flex items-start gap-3"
-                  >
+                  <button key={item.id} onClick={() => setSelectedNote(item)}
+                    className="w-full text-left border border-border bg-surface px-4 py-3 hover:border-accent/30 transition-colors group flex items-start gap-3">
                     <span className="flex-shrink-0 text-[10px] border border-accent/40 text-accent px-2 py-0.5 uppercase tracking-wider mt-0.5 flex items-center gap-1">
                       {domainIcon(item.domain) && <HubIcon icon={domainIcon(item.domain)!} size={12} />}
                       {domainLabel(item.domain)}
@@ -326,28 +265,14 @@ export default function HubContent({ slug }: { slug: string }) {
       </div>
 
       {selectedNote && (
-        <NotePanel
-          note={selectedNote}
-          onClose={() => setSelectedNote(null)}
+        <NotePanel note={selectedNote} onClose={() => setSelectedNote(null)}
           onUpdate={(updated) => setSelectedNote(updated)}
-          onDelete={() => {
-            setSelectedNote(null)
-            load()
-          }}
-        />
+          onDelete={() => { setSelectedNote(null); load() }} />
       )}
 
-      {/* Create panel */}
       {creating && createDraft && (
-        <NotePanel
-          draft={createDraft}
-          lockDomain
-          onClose={() => setCreating(false)}
-          onCreated={() => {
-            setCreating(false)
-            load()
-          }}
-        />
+        <NotePanel draft={createDraft} lockDomain onClose={() => setCreating(false)}
+          onCreated={() => { setCreating(false); load() }} />
       )}
     </>
   )

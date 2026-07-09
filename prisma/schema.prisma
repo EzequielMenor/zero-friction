@@ -22,14 +22,28 @@ enum NoteStatus {
   DONE
 }
 
+// NUEVO: enum reducido a 3 valores. Migration B renombrará NoteStatusNew → NoteStatus
+// y dropeará el enum viejo NoteStatus.
+enum NoteStatusNew {
+  DRAFT
+  NEEDS_REVIEW
+  ACTIVE
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+}
+
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   notes         Note[]
+  tasks         Task[]
   relationships NoteRelationship[]
   workouts      Workout[]
   transactions  Transaction[]
@@ -41,66 +55,89 @@ model User {
 }
 
 model Note {
-  id            String             @id @default(cuid())
-  userId        String
-  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title         String
-  content       String
-  domain        Domain
-  status        NoteStatus         @default(ACTIVE)
-  dueDate       DateTime?
-  isImportant   Boolean            @default(false)
-  tags          String[]
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  content        String
+  domain         Domain
+  status         NoteStatus    @default(ACTIVE) // legacy, se dropea en Migration B
+  noteStatus     NoteStatusNew @default(DRAFT) // NUEVO: reemplaza a status
+  dueDate        DateTime? // legacy, se mueve a Task
+  isImportant    Boolean       @default(false) // legacy, se mueve a Task
+  tags           String[]
   suggestedGoals String[]
 
   // pgvector: Storing vector representations for the Zettelkasten Graph
-  embedding     Unsupported("vector(1536)")?
+  embedding Unsupported("vector(1536)")?
 
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  task          Task? // NUEVO: relación 1:1 opcional
   incomingLinks NoteRelationship[] @relation("TargetNote")
   outgoingLinks NoteRelationship[] @relation("SourceNote")
 }
 
+model Task {
+  id          String     @id @default(cuid())
+  noteId      String     @unique
+  userId      String
+  status      TaskStatus @default(OPEN)
+  dueDate     DateTime?
+  isImportant Boolean    @default(false)
+  focusedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // CHECK (status <> 'DONE' OR completedAt IS NOT NULL) — vía SQL en Migration B
+  // Partial unique (userId) WHERE focusedAt IS NOT NULL — vía SQL en Migration B
+
+  @@index([userId, status])
+  @@index([userId, dueDate])
+}
+
 model NoteRelationship {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   sourceNoteId String
-  sourceNote   Note     @relation("SourceNote", fields: [sourceNoteId], references: [id], onDelete: Cascade)
+  sourceNote   Note   @relation("SourceNote", fields: [sourceNoteId], references: [id], onDelete: Cascade)
 
   targetNoteId String
-  targetNote   Note     @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Cascade)
+  targetNote   Note   @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Cascade)
 
-  similarity   Float?
-  isManual     Boolean  @default(false)
+  similarity Float?
+  isManual   Boolean @default(false)
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([sourceNoteId, targetNoteId])
 }
 
 model Workout {
-  id        String       @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   date      DateTime
   duration  String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  sets      WorkoutSet[]
+  sets WorkoutSet[]
 
   @@unique([userId, date])
 }
 
 model WorkoutSet {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   workoutId    String
-  workout      Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  workout      Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exerciseName String
   weight       Float
   reps         Int
@@ -109,22 +146,22 @@ model WorkoutSet {
 }
 
 model Transaction {
-  id             String        @id @default(cuid())
-  userId         String
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount         Float
-  description    String
-  date           DateTime
-  category       String
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Float
+  description String
+  date        DateTime
+  category    String
 
   subscriptionId String?
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
-  accountId      String?
-  account        Account?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
@@ -140,14 +177,14 @@ model Account {
 }
 
 model Subscription {
-  id           String        @id @default(cuid())
-  userId       String
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name         String
-  amount       Float
-  dayOfMonth   Int
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  amount     Float
+  dayOfMonth Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   transactions Transaction[]
 }
@@ -162,15 +199,15 @@ model CoachAdvice {
 }
 
 model Habit {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   frequency String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  logs      HabitLog[]
+  logs HabitLog[]
 }
 
 model HabitLog {

@@ -1,13 +1,14 @@
 /**
  * lib/parse-capture.ts
  *
- * Extracted AI parsing, embedding, and note-creation logic from POST /api/capture.
- * Pure refactor — no behavior change. Consumed by the capture route.
+ * Extracted AI parsing, embedding, and note-creation logic.
+ * Actualizado para modelo Note + Task: dueDate/isImportant viven en Task.
  *
  * @module parse-capture
  */
 
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { getLlmForUser } from '@/lib/llm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,23 +39,15 @@ export interface ParsedCapture {
 
 // ─── AI Prompt Constants ───────────────────────────────────────────────────────
 
-/** JSON schema for Chat Completion response — mirrors ParsedCapture shape. */
 export const RESPONSE_SCHEMA = {
   type: 'object',
   required: ['domain', 'cleanedTitle', 'cleanedContent', 'tags', 'metadata'],
   properties: {
-    domain: {
-      enum: ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS'],
-    },
+    domain: { enum: ['ESPIRITUAL', 'PERSONAL', 'APRENDIZAJE', 'PROYECTOS', 'REGISTROS'] },
     cleanedTitle: { type: 'string' },
     cleanedContent: { type: 'string' },
     tags: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 4 },
-    suggestedGoals: {
-      type: 'array',
-      items: { type: 'string' },
-      minItems: 1,
-      maxItems: 2,
-    },
+    suggestedGoals: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 2 },
     metadata: {
       type: 'object',
       properties: {
@@ -75,9 +68,6 @@ export const RESPONSE_SCHEMA = {
   },
 } as const
 
-/**
- * System prompt for the capture-parsing Chat Completion.
- */
 export const SYSTEM_PROMPT =
   'You are a note processing assistant. ' +
   '1. Clean the text (correct transcription errors, strip control metadata like dates, "!", or commands). ' +
@@ -87,26 +77,17 @@ export const SYSTEM_PROMPT =
   '5. If REGISTROS+finanzas, extract: value (number), name/description, category (or GASTOS_FIJOS). ' +
   '6. If REGISTROS+habito, extract: name, category (e.g. "salud", "productividad"). ' +
   '7. If REGISTROS+gimnasio, extract: exercise name, weight, reps, sets, or mark as needs_review. ' +
-  '8. Extract 2-4 thematic tags (e.g. ["Paciencia", "Gálatas"] or ["NextJS", "Prisma"]) — these are short topic/theme labels, NOT sentences. ' +
-  '9. If domain is ESPIRITUAL, also extract 1-2 concrete actionable personal-application goals based on the study content (e.g. ["Aplicar Gálatas 5:22-23 en mis relaciones esta semana"]). ' +
+  '8. Extract 2-4 thematic tags (e.g. ["Paciencia", "Gálatas"] or ["NextJS", "Prisma"]). ' +
+  '9. If domain is ESPIRITUAL, also extract 1-2 concrete actionable personal-application goals. ' +
   '10. Return ONLY valid JSON matching the schema: ' +
   JSON.stringify(RESPONSE_SCHEMA) +
   '. Do not add any text before or after the JSON.'
 
-/** User-prompt factory — wraps raw capture text. */
 export const USER_PROMPT = (rawText: string): string =>
   `Process this note:\n\n${rawText}`
 
 // ─── Chat Completion ───────────────────────────────────────────────────────────
 
-/**
- * Parse raw capture text via Chat Completion.
- * Returns a fully-typed ParsedCapture object.
- *
- * @param rawText - The raw text (or transcribed audio) to parse
- * @param userId  - Authenticated user ID, used to resolve per-user LLM config
- * @param signal  - Optional AbortSignal for timeout/cancellation (e.g. 15s limit)
- */
 export async function runCaptureChatCompletion(
   rawText: string,
   userId: string,
@@ -136,12 +117,6 @@ export async function runCaptureChatCompletion(
 
 // ─── Embeddings ────────────────────────────────────────────────────────────────
 
-/**
- * Generate an embedding vector for the given text.
- *
- * @param text   - Text to embed
- * @param userId - Authenticated user ID, used to resolve per-user embedding model
- */
 export async function createEmbedding(text: string, userId: string): Promise<number[]> {
   const { client, embeddingModel } = await getLlmForUser(userId)
   const response = await client.embeddings.create({
@@ -151,15 +126,12 @@ export async function createEmbedding(text: string, userId: string): Promise<num
   return response.data[0].embedding
 }
 
-// ─── Note Persistence ──────────────────────────────────────────────────────────
+// ─── Note Persistence (POST /api/capture) ──────────────────────────────────────
 
 /**
- * Create a Note and persist its embedding + relationships.
- * Used by the existing /api/capture route (CREATE path).
- *
- * @param userId - Authenticated user ID
- * @param parsed - AI-parsed capture result
- * @returns The created Note's id and embedding vector
+ * Create a Note DRAFT (sin Task) and persist its embedding + relationships.
+ * Usado por /api/capture. Los campos de Task (dueDate, isImportant) ya no
+ * viven en Note — se pasan a Task.create si corresponde.
  */
 export async function createNoteWithRelations(
   userId: string,
@@ -171,8 +143,7 @@ export async function createNoteWithRelations(
       title: parsed.cleanedTitle,
       content: parsed.cleanedContent,
       domain: parsed.domain,
-      dueDate: parsed.metadata.dueDate ? new Date(parsed.metadata.dueDate) : null,
-      isImportant: parsed.metadata.isImportant,
+      noteStatus: 'DRAFT',
       tags: parsed.tags ?? [],
       suggestedGoals: parsed.suggestedGoals ?? [],
     },
@@ -180,7 +151,7 @@ export async function createNoteWithRelations(
 
   const embedding = await createEmbedding(parsed.cleanedContent, userId)
 
-  // Save embedding via raw SQL (Prisma does not support vector type)
+  // Save embedding via raw SQL
   await prisma.$executeRaw`
     UPDATE "Note"
     SET embedding = ${embedding}::vector
@@ -198,14 +169,6 @@ export async function createNoteWithRelations(
 
 // ─── Similarity Search ─────────────────────────────────────────────────────────
 
-/**
- * Find the 3 most similar existing notes for a given note + embedding.
- * Uses pgvector's cosine distance operator (<=>).
- *
- * @param userId   - Authenticated user ID
- * @param noteId   - Source note ID (excluded from results)
- * @param embedding - Embedding vector for the source note
- */
 export async function findSimilarNotes(
   userId: string,
   noteId: string,
@@ -221,80 +184,8 @@ export async function findSimilarNotes(
   return similar
 }
 
-// ─── DRAFT Enrichment (UPDATE path) ───────────────────────────────────────────
-
-/**
- * CAS-gated update of a DRAFT note to ACTIVE.
- * Used by POST /api/notes/[id]/process.
- *
- * Race: two concurrent requests. First wins CAS (DRAFT→ACTIVE), second sees
- * count=0 and returns null. Embedding write is gated by the same CAS guard
- * via the raw SQL WHERE status='ACTIVE' condition.
- *
- * @param noteId  - DRAFT note ID
- * @param userId  - Authenticated user ID
- * @param parsed  - AI-parsed capture result
- * @returns Updated Note or null when CAS fails (already processed)
- */
-export async function enrichDraftNote(
-  noteId: string,
-  userId: string,
-  parsed: ParsedCapture
-): Promise<import('@prisma/client').Note | null> {
-  // 1. Generate embedding first (before CAS so we only compute if we'll use it)
-  const embedding = await createEmbedding(parsed.cleanedContent, userId)
-
-  // 2. CAS-gated update: only succeeds if note is still DRAFT
-  const result = await prisma.note.updateMany({
-    where: {
-      id: noteId,
-      userId,
-      status: 'DRAFT',
-    },
-    data: {
-      status: 'ACTIVE',
-      domain: parsed.domain,
-      title: parsed.cleanedTitle,
-      content: parsed.cleanedContent,
-      tags: parsed.tags,
-      suggestedGoals: parsed.suggestedGoals ?? [],
-      dueDate: parsed.metadata.dueDate ? new Date(parsed.metadata.dueDate) : null,
-      isImportant: parsed.metadata.isImportant,
-    },
-  })
-
-  // CAS failed — note is no longer DRAFT (already processed)
-  if (result.count === 0) {
-    return null
-  }
-
-  // 3. Embedding write — guarded by status='ACTIVE' to survive lost races
-  await prisma.$executeRaw`
-    UPDATE "Note"
-    SET embedding = ${embedding}::vector
-    WHERE id = ${noteId} AND status = 'ACTIVE'
-  `
-
-  // 4. Similarity + relationships
-  const similar = await findSimilarNotes(userId, noteId, embedding)
-  if (similar.length > 0) {
-    await createRelationships(userId, noteId, similar)
-  }
-
-  // 5. Return the updated note
-  return prisma.note.findUnique({ where: { id: noteId } })
-}
-
 // ─── Relationships ─────────────────────────────────────────────────────────────
 
-/**
- * Create or update NoteRelationship records linking a source note to its
- * most-similar neighbours.
- *
- * @param userId      - Authenticated user ID
- * @param sourceNoteId - Source note ID
- * @param similarNotes - Array of { id, similarity } for target notes
- */
 export async function createRelationships(
   userId: string,
   sourceNoteId: string,
@@ -303,17 +194,9 @@ export async function createRelationships(
   await prisma.$transaction(
     similarNotes.map(({ id: targetNoteId, similarity }) =>
       prisma.noteRelationship.upsert({
-        where: {
-          sourceNoteId_targetNoteId: { sourceNoteId, targetNoteId },
-        },
+        where: { sourceNoteId_targetNoteId: { sourceNoteId, targetNoteId } },
         update: { similarity },
-        create: {
-          userId,
-          sourceNoteId,
-          targetNoteId,
-          similarity,
-          isManual: false,
-        },
+        create: { userId, sourceNoteId, targetNoteId, similarity, isManual: false },
       })
     )
   )
@@ -321,39 +204,35 @@ export async function createRelationships(
 
 // ─── REGISTROS helpers ──────────────────────────────────────────────────────────
 
-/** Persist a finanzas transaction from AI-parsed capture. */
 export async function createTransactionFromParsed(
+  tx: Prisma.TransactionClient,
   userId: string,
   parsed: ParsedCapture
 ): Promise<{ id: string; kind: 'finanzas' }> {
-  const tx = await prisma.transaction.create({
+  const created = await tx.transaction.create({
     data: {
       userId,
       amount: parsed.metadata.recordData.value ?? 0,
-      description:
-        parsed.metadata.recordData.name ?? parsed.cleanedTitle,
+      description: parsed.metadata.recordData.name ?? parsed.cleanedTitle,
       date: new Date(),
       category: parsed.metadata.recordData.category ?? 'VARIOS',
     },
   })
-  return { id: tx.id, kind: 'finanzas' }
+  return { id: created.id, kind: 'finanzas' }
 }
 
-/**
- * Toggle today's habit log — create on first hit, flip `completed` thereafter.
- * Normalises the date to midnight so @@unique([habitId, date]) works as "one log per day".
- */
 export async function createOrToggleHabitLogFromParsed(
+  tx: Prisma.TransactionClient,
   userId: string,
   parsed: ParsedCapture
 ): Promise<{ id: string; kind: 'habito' }> {
   const habitName = parsed.metadata.recordData.name ?? parsed.cleanedTitle
 
-  let habit = await prisma.habit.findFirst({
+  let habit = await tx.habit.findFirst({
     where: { userId, name: { equals: habitName } },
   })
   if (!habit) {
-    habit = await prisma.habit.create({
+    habit = await tx.habit.create({
       data: { userId, name: habitName, frequency: 'daily' },
     })
   }
@@ -361,51 +240,41 @@ export async function createOrToggleHabitLogFromParsed(
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const existing = await prisma.habitLog.findUnique({
+  const existing = await tx.habitLog.findUnique({
     where: { habitId_date: { habitId: habit.id, date: today } },
   })
 
   const log = existing
-    ? await prisma.habitLog.update({
+    ? await tx.habitLog.update({
         where: { id: existing.id },
         data: { completed: !existing.completed },
       })
-    : await prisma.habitLog.create({
+    : await tx.habitLog.create({
         data: { habitId: habit.id, date: today, completed: true },
       })
 
   return { id: log.id, kind: 'habito' }
 }
 
-/**
- * Upsert a workout record for today and add one set for the parsed exercise.
- * Workout has @@unique([userId, date]) → one workout per user per day.
- */
 export async function createWorkoutFromParsed(
+  tx: Prisma.TransactionClient,
   userId: string,
   parsed: ParsedCapture
 ): Promise<{ id: string; kind: 'gimnasio' }> {
-  const exerciseName =
-    parsed.metadata.recordData.name ?? parsed.cleanedTitle
+  const exerciseName = parsed.metadata.recordData.name ?? parsed.cleanedTitle
   const weight = parsed.metadata.recordData.value ?? 0
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const workout = await prisma.workout.upsert({
+  const workout = await tx.workout.upsert({
     where: { userId_date: { userId, date: today } },
     create: { userId, title: parsed.cleanedTitle, date: today },
     update: {},
   })
 
-  await prisma.workoutSet.create({
-    data: {
-      workoutId: workout.id,
-      exerciseName,
-      weight,
-      reps: 1,
-      setType: 'normal',
-    },
+  await tx.workoutSet.create({
+    data: { workoutId: workout.id, exerciseName, weight, reps: 1, setType: 'normal' },
   })
 
   return { id: workout.id, kind: 'gimnasio' }
