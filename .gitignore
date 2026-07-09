@@ -42,3 +42,8 @@ next-env.d.ts
 
 /app/generated/prisma
 repomix-output-zero.xml
+
+# Expo
+.expo/
+.expo/*
+!/.expo/.gitignore
