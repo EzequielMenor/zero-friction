@@ -1,6 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## Modelo de datos
+
+Zero Friction usa **Note + Task** como núcleo de su modelo:
+
+- **Note**: captura de conocimiento (título, contenido, dominio, tags, embedding pgvector). `noteStatus ∈ {DRAFT, NEEDS_REVIEW, ACTIVE}`.
+- **Task**: acción ejecutable (fecha límite, prioridad, foco, completada). Relación 1:1 opcional con Note (`Task.noteId` UNIQUE, `onDelete: Cascade`).
+
+Flujo: Capture → Note DRAFT → Process (IA) → Note ACTIVE + (opcional) Task OPEN → Focus / Complete.
+
+Ver [ADR 0001](docs/sdd/active/refactor-note-task-split/ADR.md) para más detalles.
+
+---
 
 First, run the development server:
 
